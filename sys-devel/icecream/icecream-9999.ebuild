@@ -16,12 +16,13 @@ IUSE="systemd"
 
 RDEPEND="
 	sys-libs/libcap-ng
+	app-text/docbook2X
 "
 DEPEND="${RDEPEND}"
 
 EGIT_REPO_URI="https://github.com/icecc/icecream.git"
 case "$PV" in
-"1.2_rc0") REFS="4f7fd6580347fa91fa8f7ae1c2427b1c244e31e9";;
+"1.2_rc0") REFS="dc5d8fabd80dafbab9abcf6620d53bb1ce398db2";;
 "9999") REFS="HEAD";;
 esac
 TAG="${PV}"
