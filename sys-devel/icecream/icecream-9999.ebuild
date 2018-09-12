@@ -15,6 +15,7 @@ KEYWORDS="~amd64 ~arm ~hppa ~ppc ~sparc ~x86"
 IUSE="systemd"
 
 RDEPEND="
+	dev-libs/lzo
 	sys-libs/libcap-ng
 	app-text/docbook2X
 "
@@ -22,7 +23,7 @@ DEPEND="${RDEPEND}"
 
 EGIT_REPO_URI="https://github.com/icecc/icecream.git"
 case "$PV" in
-"1.2_rc0") REFS="dc5d8fabd80dafbab9abcf6620d53bb1ce398db2";;
+"1.2_pre20180912") REFS="cdc6ff8d8d75d5b9821ec39939e903e089b39a0a";;
 "9999") REFS="HEAD";;
 esac
 TAG="${PV}"
