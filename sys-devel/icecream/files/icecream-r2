@@ -15,9 +15,13 @@ start() {
 	local scheduler=${ICECREAM_SCHEDULER_HOST:+"-s ${ICECREAM_SCHEDULER_HOST}"}
 	local maxjobs=${ICECREAM_MAX_JOBS:+"-m ${ICECREAM_MAX_JOBS}"}
 	local verbosity=${ICECREAM_VERBOSITY:-"-v"}
+	
+	if [ "${ICECREAM_ALLOW_REMOTE}" = "no" ]; then
+	    local noremote="--no-remote"
+	fi
 
-	[[ ! -d /var/log/icecream/ ]] && mkdir -p /var/log/icecream/ && chown icecream:icecream /var/log/icecream/
-	if [[ "${ICECREAM_RUN_SCHEDULER}" == "yes" ]]; then
+	[ ! -d /var/log/icecream/ ] && mkdir -p /var/log/icecream/ && chown icecream:icecream /var/log/icecream/
+	if [ "${ICECREAM_RUN_SCHEDULER}" = "yes" ]; then
 		local slogfile=${ICECREAM_SCHEDULER_LOG_FILE:-"/var/log/icecc_scheduler"}
 		touch ${slogfile} && chown icecream:icecream ${slogfile}
 		slogfile=${slogfile:+"-l ${slogfile}"}
@@ -26,9 +30,9 @@ start() {
 		eend ${?}
 	fi
 
-	[[ ! -d ${basedir} ]] && mkdir -p ${basedir} && chown icecream:icecream ${basedir}
+	[ ! -d ${basedir} ] && mkdir -p ${basedir} && chown icecream:icecream ${basedir}
 	ebegin "Starting Distributed Compiler Daemon"
-	start-stop-daemon --start --quiet --exec /usr/sbin/iceccd -- -d ${logfile} ${nice} ${scheduler} ${netname} -u icecream -b "${basedir}" ${maxjobs} ${verbosity}
+	start-stop-daemon --start --quiet --exec /usr/sbin/iceccd -- -d ${logfile} ${nice} ${scheduler} ${netname} -u icecream -b "${basedir}" ${maxjobs} ${verbosity} ${noremote}
 	eend ${?}
 }
 
@@ -37,7 +41,7 @@ stop() {
 	start-stop-daemon --stop --quiet --name iceccd
 	eend ${?}
 
-	if [[ "${ICECREAM_RUN_SCHEDULER}" == "yes" ]]; then
+	if [ "${ICECREAM_RUN_SCHEDULER}" = "yes" ]; then
 		ebegin "Stopping Distributed Compiler Scheduler"
 		start-stop-daemon --stop --quiet --name icecc-scheduler
 		eend ${?}
