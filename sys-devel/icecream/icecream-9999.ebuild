@@ -24,6 +24,7 @@ DEPEND="${RDEPEND}"
 EGIT_REPO_URI="https://github.com/icecc/icecream.git"
 case "$PV" in
 "1.2_pre20180912") REFS="cdc6ff8d8d75d5b9821ec39939e903e089b39a0a";;
+"1.2") REFS="e3d10a32bc6c046d8f3d1182e75c659d4b28ed49";;
 "9999") REFS="HEAD";;
 esac
 TAG="${PV}"
