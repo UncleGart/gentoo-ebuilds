@@ -4,13 +4,10 @@
 
 EAPI=5
 
-MY_P="${P/icecream/icecc}"
-
-inherit base eutils user systemd
+inherit base eutils user systemd git-r3 autotools
 
 DESCRIPTION="icecc is a program for distributed compiling of C(++) code across several machines; based on distcc"
 HOMEPAGE="https://github.com/icecc/icecream"
-SRC_URI="ftp://ftp.suse.com/pub/projects/${PN}/${MY_P}.tar.bz2"
 
 LICENSE="GPL-2"
 SLOT="0"
@@ -18,15 +15,28 @@ KEYWORDS="~amd64 ~arm ~hppa ~ppc ~sparc ~x86"
 IUSE="systemd"
 
 RDEPEND="
+	dev-libs/lzo
 	sys-libs/libcap-ng
+	app-text/docbook2X
 "
 DEPEND="${RDEPEND}"
 
-S="${WORKDIR}/${MY_P}"
+EGIT_REPO_URI="https://github.com/icecc/icecream.git"
+REFS="070d953ba41b2c45d90109806a1b6cd5ea2871c4"
+TAG="${PV}"
 
 pkg_setup() {
 	enewgroup icecream
 	enewuser icecream -1 -1 /var/cache/icecream icecream
+}
+
+src_unpack() {
+	git-r3_fetch ${EGIT_REPO_URI} ${REFS} ${TAG}
+	git-r3_checkout ${EGIT_REPO_URI} ${WORKDIR}/${P} ${TAG} 
+}
+
+src_prepare() {
+	eautoreconf
 }
 
 src_configure() {
