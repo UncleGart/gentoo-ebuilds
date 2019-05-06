@@ -16,13 +16,14 @@ IUSE="systemd"
 
 RDEPEND="
 	dev-libs/lzo
+	app-arch/libarchive
 	sys-libs/libcap-ng
 	app-text/docbook2X
 "
 DEPEND="${RDEPEND}"
 
 EGIT_REPO_URI="https://github.com/icecc/icecream.git"
-REFS="070d953ba41b2c45d90109806a1b6cd5ea2871c4"
+REFS="0c7c455f0454d0ee30f6bd3d7838af93338f951c"
 TAG="${PV}"
 
 pkg_setup() {
