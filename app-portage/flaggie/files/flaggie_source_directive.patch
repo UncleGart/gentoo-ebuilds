@@ -1,0 +1,13 @@
+--- a/lib/flaggie/makeconf.py	2012-06-02 13:22:22.000000000 +0400
++++ b/lib/flaggie/makeconf.py	2019-05-16 15:12:47.340202777 +0300
+@@ -579,8 +579,8 @@
+ 			if joined == 'source':
+ 				fn = join(l[1])
+ 				if fn not in self.files:
+-					self.files[fn] = self.MakeConfFile(fn, path)
+-				self.parse(self.files[fn], fn)
++					self.files[fn] = self.MakeConfFile(fn, os.path.dirname(path))
++				self.parse(self.files[fn], path)
+ 				continue
+ 			elif joined == 'export':
+ 				assignm = l[1]
