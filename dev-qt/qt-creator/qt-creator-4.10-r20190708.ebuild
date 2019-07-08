@@ -11,17 +11,10 @@ HOMEPAGE="https://doc.qt.io/qtcreator/"
 LICENSE="GPL-3"
 SLOT="0"
 
-if [[ ${PV} == *9999 ]]; then
-	inherit git-r3
-	EGIT_REPO_URI="https://code.qt.io/${PN}/${PN}.git"
-else
-	MY_PV=${PV/_/-}
-	MY_P=${PN}-opensource-src-${MY_PV}
-	[[ ${MY_PV} == ${PV} ]] && MY_REL=official || MY_REL=development
-	SRC_URI="https://download.qt.io/${MY_REL}_releases/${PN/-}/${PV%.*}/${MY_PV}/${MY_P}.tar.xz"
-	KEYWORDS="amd64 ~arm ~x86"
-	S=${WORKDIR}/${MY_P}
-fi
+inherit git-r3
+EGIT_REPO_URI="https://code.qt.io/${PN}/${PN}.git"
+EGIT_BRANCH="4.10"
+EGIT_COMMIT="918710737d7b531983c4e33753905de486dd42b7"
 
 # TODO: unbundle sqlite
 
@@ -33,7 +26,7 @@ QTC_PLUGINS=('android:android|qmakeandroidsupport' autotools:autotoolsprojectman
 IUSE="doc systemd test +webengine ${QTC_PLUGINS[@]%:*}"
 
 # minimum Qt version required
-QT_PV="5.6.2:5"
+QT_PV="5.9.0:5"
 
 CDEPEND="
 	=dev-libs/botan-1.10*[-bindist,threads]
@@ -51,7 +44,7 @@ CDEPEND="
 	>=dev-qt/qtwidgets-${QT_PV}
 	>=dev-qt/qtx11extras-${QT_PV}
 	>=dev-qt/qtxml-${QT_PV}
-	clangcodemodel? ( >=sys-devel/clang-5:= )
+	clangcodemodel? ( >=sys-devel/clang-8:= )
 	designer? ( >=dev-qt/designer-${QT_PV} )
 	qbs? ( >=dev-util/qbs-1.11.1 )
 	systemd? ( sys-apps/systemd:= )
@@ -71,7 +64,7 @@ RDEPEND="${CDEPEND}
 	sys-devel/gdb[client,python]
 	autotools? ( sys-devel/autoconf )
 	bazaar? ( dev-vcs/bzr )
-	clangstaticanalyzer? ( >=sys-devel/clang-5:* )
+	clangstaticanalyzer? ( >=sys-devel/clang-8:* )
 	cmake? ( dev-util/cmake[server(+)] )
 	cvs? ( dev-vcs/cvs )
 	git? ( dev-vcs/git )
@@ -124,7 +117,7 @@ src_prepare() {
 	sed -i -e '/sdktool/ d' tests/auto/auto.pro || die
 	sed -i -e '/\(dumpers\|offsets\)\.pro/ d' tests/auto/debugger/debugger.pro || die
 	sed -i -e '/CONFIG -=/ s/$/ testcase/' tests/auto/extensionsystem/pluginmanager/correctplugins1/plugin?/plugin?.pro || die
-	#sed -i -e '/timeline\(items\|notes\|selection\)renderpass/ d' tests/auto/timeline/timeline.pro || die
+	sed -i -e '/timeline\(items\|notes\|selection\)renderpass/ d' tests/auto/tracing/tracing.pro || die
 	sed -i -e 's/\<memcheck\>//' tests/auto/valgrind/valgrind.pro || die
 
 	# fix path to some clang headers

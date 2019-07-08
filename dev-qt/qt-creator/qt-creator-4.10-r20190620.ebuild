@@ -13,12 +13,8 @@ SLOT="0"
 
 inherit git-r3
 EGIT_REPO_URI="https://code.qt.io/${PN}/${PN}.git"
-EGIT_BRANCH="4.9"
-EGIT_COMMIT="df22fb083b659cd4f3863cc5484c74a11d6de226"
-
-PATCHES=(
-	"${FILESDIR}/clazy-plugin-hack.patch"
-)
+EGIT_BRANCH="4.10"
+EGIT_COMMIT="7b6ebea648bae91ee4ba014237eae34eb34d3805"
 
 # TODO: unbundle sqlite
 
@@ -48,7 +44,7 @@ CDEPEND="
 	>=dev-qt/qtwidgets-${QT_PV}
 	>=dev-qt/qtx11extras-${QT_PV}
 	>=dev-qt/qtxml-${QT_PV}
-	clangcodemodel? ( >=sys-devel/clang-7:= )
+	clangcodemodel? ( >=sys-devel/clang-8:= )
 	designer? ( >=dev-qt/designer-${QT_PV} )
 	qbs? ( >=dev-util/qbs-1.11.1 )
 	systemd? ( sys-apps/systemd:= )
@@ -68,7 +64,7 @@ RDEPEND="${CDEPEND}
 	sys-devel/gdb[client,python]
 	autotools? ( sys-devel/autoconf )
 	bazaar? ( dev-vcs/bzr )
-	clangstaticanalyzer? ( >=sys-devel/clang-7:* )
+	clangstaticanalyzer? ( >=sys-devel/clang-8:* )
 	cmake? ( dev-util/cmake[server(+)] )
 	cvs? ( dev-vcs/cvs )
 	git? ( dev-vcs/git )
