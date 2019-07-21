@@ -3,7 +3,7 @@
 
 EAPI=6
 
-PYTHON_COMPAT=( python3_{4,5,6} )
+PYTHON_COMPAT=( python3_{4,5,6,7} )
 
 if [[ ${PV} == 9999* ]]; then
 	EGIT_REPO_URI="https://github.com/UncleGart/${PN}.git"
