@@ -14,7 +14,7 @@ SLOT="0"
 inherit git-r3
 EGIT_REPO_URI="https://code.qt.io/${PN}/${PN}.git"
 EGIT_BRANCH="4.10"
-EGIT_COMMIT="402ff933ad17c340dd20eaadfff90111bb06d494"
+EGIT_COMMIT="6c3be76c8d6f4d0918c8cb3e49f59e8a1a7c06f1"
 
 # TODO: unbundle sqlite
 
