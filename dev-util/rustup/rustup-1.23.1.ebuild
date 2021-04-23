@@ -307,6 +307,10 @@ QA_FLAGS_IGNORED="usr/bin/.*"
 # uses network
 RESTRICT="test"
 
+PATCHES=(
+	"${FILESDIR}/rustup-x32.patch"
+)
+
 src_unpack() {
 	if [[ "${PV}" == *9999* ]]; then
 		git-r3_src_unpack
