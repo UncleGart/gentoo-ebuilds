@@ -48,8 +48,8 @@
 +#error
 +#endif
  int test[sizeof(void*) == 8? 1 : -1];
---- a/libs/config/checks/architecture/Jamroot.jam
-+++ b/libs/config/checks/architecture/Jamroot.jam
+--- a/libs/config/checks/architecture/Jamfile.jam
++++ b/libs/config/checks/architecture/Jamfile.jam
 @@ -13,6 +13,7 @@
          ; 
  

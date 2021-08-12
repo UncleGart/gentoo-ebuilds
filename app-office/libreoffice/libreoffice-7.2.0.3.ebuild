@@ -148,7 +148,6 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	dev-libs/libxslt
 	dev-libs/nspr
 	dev-libs/nss
-	dev-libs/qrcodegen
 	>=dev-libs/redland-1.0.16
 	>=dev-libs/xmlsec-1.2.28[nss]
 	media-libs/zxing-cpp
@@ -278,8 +277,7 @@ RDEPEND="${COMMON_DEPEND}
 	kde? ( kde-frameworks/breeze-icons:* )
 "
 if [[ ${MY_PV} != *9999* ]] && [[ ${PV} != *_* ]]; then
-	#PDEPEND="=app-office/libreoffice-l10n-$(ver_cut 1-2)*"
-	PDEPEND=">=app-office/libreoffice-l10n-7.1.5.2"
+	PDEPEND="=app-office/libreoffice-l10n-$(ver_cut 1-2)*"
 else
 	# Translations are not reliable on live ebuilds
 	# rather force people to use english only.
