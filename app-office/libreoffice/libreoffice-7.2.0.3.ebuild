@@ -132,7 +132,6 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	>=app-text/libwps-0.4
 	app-text/mythes
 	>=dev-cpp/clucene-2.3.3.4-r2
-	>=dev-cpp/libcmis-0.5.2
 	dev-db/unixODBC
 	>=games-engines/box2d-2.4.1:0
 	dev-lang/perl
@@ -481,6 +480,7 @@ src_configure() {
 		--disable-bundle-mariadb
 		--disable-ccache
 		--disable-epm
+		--disable-cmis
 		--disable-fetch-external
 		--disable-gtk3-kde5
 		--disable-online-update
