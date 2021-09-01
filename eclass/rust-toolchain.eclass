@@ -1,4 +1,4 @@
-# Copyright 1999-2020 Gentoo Authors
+# Copyright 1999-2021 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 # @ECLASS: rust-toolchain.eclass
@@ -41,7 +41,7 @@ rust_abi() {
 		powerpc64le*) echo powerpc64le-unknown-linux-gnu;;
 		powerpc64*)   echo powerpc64-unknown-linux-gnu;;
 		x86_64*gnu)	  echo x86_64-unknown-linux-gnu;;
-		x86_64*gnux32)	  echo x86_64-unknown-linux-gnux32;;
+		x86_64*gnux32) echo x86_64-unknown-linux-gnux32;;
 		x86_64*musl)  echo x86_64-unknown-linux-musl;;
 		armv6j*s*)	  echo arm-unknown-linux-gnueabi;;
 		armv6j*h*)	  echo arm-unknown-linux-gnueabihf;;
@@ -51,6 +51,7 @@ rust_abi() {
 		mips*)		  echo mips-unknown-linux-gnu;;
 		powerpc*)	  echo powerpc-unknown-linux-gnu;;
 		s390x*)		  echo s390x-unknown-linux-gnu;;
+		riscv64*)	  echo riscv64gc-unknown-linux-gnu;;
 		*)			  echo ${CTARGET};;
   esac
 }
@@ -90,6 +91,7 @@ rust_arch_uri() {
 		echo "${RUST_TOOLCHAIN_BASEURL}${2}-${1}.tar.xz -> ${3}-${1}.tar.xz"
 	else
 		echo "${RUST_TOOLCHAIN_BASEURL}${2}-${1}.tar.xz"
+		echo "verify-sig? ( ${RUST_TOOLCHAIN_BASEURL}${2}-${1}.tar.xz.asc )"
 	fi
 }
 
@@ -108,11 +110,13 @@ rust_all_arch_uris()
   local uris=""
   uris+="abi_x86_64? ( elibc_glibc? ( $(rust_arch_uri x86_64-unknown-linux-gnu "$@") ) 
                        elibc_musl?  ( $(rust_arch_uri x86_64-unknown-linux-musl "$@") ) ) "
-  uris+="abi_x86_x32? ( elibc_glibc? ( $(rust_arch_uri x86_64-unknown-linux-gnux32 "$@") ) "                       
+  uris+="abi_x86_x32? ( elibc_glibc? ( $(rust_arch_uri x86_64-unknown-linux-gnu "$@") ) 
+                       elibc_musl?  ( $(rust_arch_uri x86_64-unknown-linux-musl "$@") ) ) "
   uris+="arm?        ( $(rust_arch_uri arm-unknown-linux-gnueabi      "$@")
                        $(rust_arch_uri arm-unknown-linux-gnueabihf    "$@")
                        $(rust_arch_uri armv7-unknown-linux-gnueabihf  "$@") ) "
-  uris+="arm64?      ( $(rust_arch_uri aarch64-unknown-linux-gnu      "$@") ) "
+  uris+="arm64?      ( elibc_glibc? ( $(rust_arch_uri aarch64-unknown-linux-gnu "$@") ) 
+                       elibc_musl?  ( $(rust_arch_uri aarch64-unknown-linux-musl "$@") ) ) "
   uris+="mips?       ( $(rust_arch_uri mips-unknown-linux-gnu         "$@")
                        $(rust_arch_uri mipsel-unknown-linux-gnu       "$@")
                        $(rust_arch_uri mips64-unknown-linux-gnuabi64  "$@") ) "
@@ -121,5 +125,6 @@ rust_all_arch_uris()
                        $(rust_arch_uri powerpc64le-unknown-linux-gnu  "$@") ) "
   uris+="s390?       ( $(rust_arch_uri s390x-unknown-linux-gnu        "$@") ) "
   uris+="abi_x86_32? ( $(rust_arch_uri i686-unknown-linux-gnu         "$@") ) "
+  uris+="riscv?      ( $(rust_arch_uri riscv64gc-unknown-linux-gnu    "$@") ) "
   echo "${uris}"
 }
