@@ -99,17 +99,8 @@ RESTRICT="!test? ( test )"
 LICENSE="|| ( LGPL-3 MPL-1.1 )"
 SLOT="0"
 
-[[ ${MY_PV} == *9999* ]] || \
-KEYWORDS="~amd64 ~arm ~arm64 ~ppc64 ~x86 ~amd64-linux"
+[[ ${MY_PV} == *9999* ]] || KEYWORDS="~amd64 ~arm ~arm64 ~ppc64 ~x86 ~amd64-linux"
 
-BDEPEND="
-	dev-util/intltool
-	sys-devel/bison
-	sys-devel/flex
-	sys-devel/gettext
-	virtual/pkgconfig
-	odk? ( >=app-doc/doxygen-1.8.4 )
-"
 COMMON_DEPEND="${PYTHON_DEPS}
 	app-arch/unzip
 	app-arch/zip
@@ -133,7 +124,6 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	app-text/mythes
 	>=dev-cpp/clucene-2.3.3.4-r2
 	dev-db/unixODBC
-	>=games-engines/box2d-2.4.1:0
 	dev-lang/perl
 	>=dev-libs/boost-1.72.0:=[nls]
 	dev-libs/expat
@@ -149,11 +139,11 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	dev-libs/nss
 	>=dev-libs/redland-1.0.16
 	>=dev-libs/xmlsec-1.2.28[nss]
-	media-libs/zxing-cpp
+	>=games-engines/box2d-2.4.1:0
 	media-gfx/fontforge
 	media-gfx/graphite2
 	media-libs/fontconfig
-	media-libs/freetype:2
+	>=media-libs/freetype-2.11.0-r1:2
 	>=media-libs/harfbuzz-0.9.42:=[graphite,icu]
 	media-libs/lcms:2
 	>=media-libs/libcdr-0.1.0
@@ -163,11 +153,11 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	>=media-libs/libpng-1.4:0=
 	>=media-libs/libvisio-0.1.0
 	media-libs/libzmf
+	media-libs/zxing-cpp
 	>=net-libs/neon-0.31.1:=
 	net-misc/curl
 	sci-mathematics/lpsolve
 	sys-libs/zlib
-	virtual/glu
 	virtual/jpeg:0
 	virtual/opengl
 	x11-libs/cairo
@@ -180,19 +170,6 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	bluetooth? (
 		dev-libs/glib:2
 		net-wireless/bluez
-	)
-	clang? (
-		|| (
-			(	sys-devel/clang:12
-				sys-devel/llvm:12
-				=sys-devel/lld-12*	)
-			(	sys-devel/clang:11
-				sys-devel/llvm:11
-				=sys-devel/lld-11*	)
-			(	sys-devel/clang:10
-				sys-devel/llvm:10
-				=sys-devel/lld-10*	)
-		)
 	)
 	coinmp? ( sci-libs/coinor-mp )
 	cups? ( net-print/cups )
@@ -275,6 +252,27 @@ RDEPEND="${COMMON_DEPEND}
 	) )
 	kde? ( kde-frameworks/breeze-icons:* )
 "
+BDEPEND="
+	dev-util/intltool
+	sys-devel/bison
+	sys-devel/flex
+	sys-devel/gettext
+	virtual/pkgconfig
+	clang? (
+		|| (
+			(	sys-devel/clang:13
+				sys-devel/llvm:13
+				=sys-devel/lld-13*	)
+			(	sys-devel/clang:12
+				sys-devel/llvm:12
+				=sys-devel/lld-12*	)
+			(	sys-devel/clang:11
+				sys-devel/llvm:11
+				=sys-devel/lld-11*	)
+		)
+	)
+	odk? ( >=app-doc/doxygen-1.8.4 )
+"
 if [[ ${MY_PV} != *9999* ]] && [[ ${PV} != *_* ]]; then
 	PDEPEND="=app-office/libreoffice-l10n-$(ver_cut 1-2)*"
 else
@@ -289,8 +287,12 @@ PATCHES=(
 	# not upstreamable stuff
 	"${FILESDIR}/${PN}-5.3.4.2-kioclient5.patch"
 	"${FILESDIR}/${PN}-6.1-nomancompress.patch"
+	"${FILESDIR}/${PN}-7.2.0.4-qt5detect.patch"
 	"${FILESDIR}/${PN}-x32-configure.patch"
 	"${FILESDIR}/${PN}-x32-cpp_uno_bridge.patch"
+
+	# Upstream
+	"${FILESDIR}/${PN}-7.2.2.2-makefile-gengal.patch"
 )
 
 S="${WORKDIR}/${PN}-${MY_PV}"
@@ -462,7 +464,6 @@ src_configure() {
 	# --without-system-sane: just sane.h header that is used for scan in writer,
 	#   not linked or anything else, worthless to depend on
 	# --disable-pdfium: not yet packaged
-	# --without-system-qrcodegen: has no real build system and LO is the only user
 	local myeconfargs=(
 		--with-system-dicts
 		--with-system-epoxy
@@ -471,6 +472,7 @@ src_configure() {
 		--with-system-libs
 		--enable-build-opensymbol
 		--enable-cairo-canvas
+		--enable-gui
 		--enable-largefile
 		--enable-mergelibs
 		--enable-python=system
@@ -478,9 +480,8 @@ src_configure() {
 		--enable-release-build
 		--disable-breakpad
 		--disable-bundle-mariadb
-		--disable-ccache
-		--disable-epm
 		--disable-cmis
+		--disable-epm
 		--disable-fetch-external
 		--disable-gtk3-kde5
 		--disable-online-update
@@ -497,7 +498,6 @@ src_configure() {
 		--with-system-ucpp
 		--with-tls=nss
 		--with-vendor="Gentoo Foundation"
-		--with-x
 		--without-fonts
 		--without-myspell-dicts
 		--with-help="html"
