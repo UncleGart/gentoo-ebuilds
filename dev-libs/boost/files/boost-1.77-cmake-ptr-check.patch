@@ -1,0 +1,32 @@
+--- a/tools/boost_install/boost-install.jam	2021-11-29 22:25:39.064577851 -0500
++++ a/tools/boost_install/boost-install.jam	2021-11-29 22:30:03.574580988 -0500
+@@ -133,29 +133,6 @@
+ 
+     print.text "# address-model=$(address-model)" "" : true ;
+ 
+-    if $(address-model) = 32
+-    {
+-        print.text
+-
+-            "if(CMAKE_SIZEOF_VOID_P EQUAL 8)"
+-            "  _BOOST_SKIPPED(\"$(fname)\" \"32 bit, need 64\")"
+-            "  return()"
+-            "endif()"
+-            ""
+-            : true ;
+-    }
+-    else
+-    {
+-        print.text
+-
+-            "if(CMAKE_SIZEOF_VOID_P EQUAL 4)"
+-            "  _BOOST_SKIPPED(\"$(fname)\" \"64 bit, need 32\")"
+-            "  return()"
+-            "endif()"
+-            ""
+-            : true ;
+-    }
+-
+     local python ;
+ 
+     local relevant = [ $(ps).get <relevant> ] ;
