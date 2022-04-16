@@ -3,12 +3,12 @@
 
 # Tested to build for x32 ABI
 
-EAPI=7
+EAPI=8
 
 PYTHON_COMPAT=( python3_{9,10} )
 
 inherit bash-completion-r1 check-reqs estack flag-o-matic llvm multiprocessing \
-	multilib-build python-any-r1 rust-toolchain toolchain-funcs verify-sig
+	multilib multilib-build python-any-r1 rust-toolchain toolchain-funcs verify-sig
 
 if [[ ${PV} = *beta* ]]; then
 	betaver=${PV//*beta}
@@ -51,7 +51,7 @@ IUSE="clippy cpu_flags_x86_sse2 debug dist doc miri nightly parallel-compiler rl
 
 # How to use it:
 # List all the working slots in LLVM_VALID_SLOTS, newest first.
-LLVM_VALID_SLOTS=( 13 )
+LLVM_VALID_SLOTS=( 14 )
 LLVM_MAX_SLOT="${LLVM_VALID_SLOTS[0]}"
 
 # splitting usedeps needed to avoid CI/pkgcheck's UncheckableDep limitation
@@ -99,7 +99,7 @@ BDEPEND="${PYTHON_DEPS}
 		dev-util/ninja
 	)
 	test? ( sys-devel/gdb )
-	verify-sig? ( app-crypt/openpgp-keys-rust )
+	verify-sig? ( sec-keys/openpgp-keys-rust )
 "
 
 DEPEND="
@@ -128,19 +128,19 @@ DEPEND="
 # we need to block older versions due to layout changes.
 RDEPEND="${DEPEND}
 	app-eselect/eselect-rust
-	!<dev-lang/rust-1.47.0-r1
-	!<dev-lang/rust-bin-1.47.0-r1
+	sys-apps/lsb-release
 "
 
 REQUIRED_USE="|| ( ${ALL_LLVM_TARGETS[*]} )
 	miri? ( nightly )
 	parallel-compiler? ( nightly )
+	rls? ( rust-src )
 	test? ( ${ALL_LLVM_TARGETS[*]} )
 	wasm? ( llvm_targets_WebAssembly )
 	x86? ( cpu_flags_x86_sse2 )
 "
 
-# we don't use cmake.eclass, but can get a warnings
+# we don't use cmake.eclass, but can get a warning
 CMAKE_WARN_UNUSED_CLI=no
 
 QA_FLAGS_IGNORED="
@@ -163,8 +163,8 @@ QA_PRESTRIPPED="
 # An rmeta file is custom binary format that contains the metadata for the crate.
 # rmeta files do not support linking, since they do not contain compiled object files.
 # so we can safely silence the warning for this QA check.
-QA_WX_LOAD="usr/lib/${PN}/${PV}/lib/rustlib/.*/lib/.*rmeta"
-QA_EXECSTACK="${QA_WX_LOAD}"
+QA_EXECSTACK="usr/lib/${PN}/${PV}/lib/rustlib/*/lib*.rlib:lib.rmeta"
+
 # causes double bootstrap
 RESTRICT="test"
 
@@ -175,7 +175,6 @@ PATCHES=(
 	"${FILESDIR}"/1.49.0-gentoo-musl-target-specs.patch
 	"${FILESDIR}"/0001-Use-lld-provided-by-system-for-wasm.patch
 	"${FILESDIR}"/0002-compiler-Change-LLVM-targets.patch
-	"${FILESDIR}"/1.57.0-x32.patch
 )
 PKG_CONFIG_ALLOW_CROSS=1
 
@@ -285,6 +284,7 @@ src_prepare() {
 		"${WORKDIR}/${rust_stage0}"/install.sh --disable-ldconfig \
 			--without=rust-docs --destdir="${rust_stage0_root}" --prefix=/ || die
 	fi
+
 if use system-llvm; then
 		rm -rf src/llvm-project/{clang,clang-tools-extra,compiler-rt,lld,lldb,llvm}
 		rm -rf src/llvm-project/libunwind/*
@@ -352,10 +352,13 @@ src_configure() {
 		tools="\"miri\",$tools"
 	fi
 	if use rls; then
-		tools="\"rls\",\"analysis\",\"src\",$tools"
+		tools="\"rls\",\"analysis\",$tools"
 	fi
 	if use rustfmt; then
 		tools="\"rustfmt\",$tools"
+	fi
+		if use rust-src; then
+		tools="\"src\",$tools"
 	fi
 
 	local rust_stage0_root
@@ -386,7 +389,7 @@ src_configure() {
 		link-shared = $(toml_usex system-llvm)
 		use-libcxx =  $(toml_usex system-llvm)
 		use-linker = "lld"
-		
+
 		[build]
 		build-stage = 2
 		test-stage = 2
@@ -452,7 +455,7 @@ src_configure() {
 		backtrace-on-ice = true
 		jemalloc = false
 		llvm-libunwind = "$(usex system-llvm system)"
-
+		
 		[dist]
 		src-tarball = false
 		compression-formats = ["xz"]
