@@ -172,9 +172,8 @@ VERIFY_SIG_OPENPGP_KEY_PATH=${BROOT}/usr/share/openpgp-keys/rust.asc
 
 PATCHES=(
 	"${FILESDIR}"/1.55.0-ignore-broken-and-non-applicable-tests.patch
-	"${FILESDIR}"/1.49.0-gentoo-musl-target-specs.patch
-	"${FILESDIR}"/0001-Use-lld-provided-by-system-for-wasm-1.60.patch
-	"${FILESDIR}"/0002-compiler-Change-LLVM-targets-1.60.patch
+	"${FILESDIR}"/0001-Use-lld-provided-by-system-for-wasm-1.61.patch
+	"${FILESDIR}"/0002-compiler-Change-LLVM-targets-1.61-x32.patch
 )
 PKG_CONFIG_ALLOW_CROSS=1
 
@@ -275,7 +274,7 @@ src_prepare() {
 		if use abi_x86_x32; then
 			# TODO: gnu vs musl
 			einfo "Preparing for x32 ABI"
-			rust_stage0="rust-${RUST_STAGE0_VERSION}-x86_64-unknown-linux-gnu"
+			rust_stage0="rust-${RUST_STAGE0_VERSION}-x86_64-pc-linux-gnu"
 			export PKG_CONFIG_PATH=/usr/libx32/pkgconfig
 			export OPENSSL_INCLUDE_DIR=/usr/libx32/
 			export OPENSSL_LIB_DIR=/usr/libx32/
@@ -299,7 +298,8 @@ if use system-llvm; then
 	fi
 
 	# Remove other unused vendored libraries 
-	rm -rf vendor/jemalloc-sys/jemalloc/
+	rm -rf vendor/*jemalloc-sys*/jemalloc/
+	rm -rf vendor/libmimalloc-sys/c_src/mimalloc/
 	rm -rf vendor/openssl-src/openssl/
 
 	# Remove hidden files from source
@@ -387,7 +387,7 @@ src_configure() {
 		experimental-targets = ""
 		link-jobs = $(makeopts_jobs)
 		link-shared = $(toml_usex system-llvm)
-		use-libcxx =  $(toml_usex system-llvm)
+		use-libcxx = false
 		use-linker = "lld"
 
 		[build]
