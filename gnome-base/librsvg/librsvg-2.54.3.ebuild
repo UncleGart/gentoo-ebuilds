@@ -1,39 +1,49 @@
-# Copyright 1999-2021 Gentoo Authors
+# Copyright 1999-2022 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=6
-VALA_USE_DEPEND="vapigen"
-VALA_MIN_API_VERSION=0.46
+GNOME2_EAUTORECONF=yes # for patching configure.ac
+PYTHON_COMPAT=( python3_{8..10} )
 
-inherit gnome2 multilib-minimal rust-toolchain vala 
+inherit gnome2 multilib-minimal python-any-r1 rust-toolchain vala
 
 DESCRIPTION="Scalable Vector Graphics (SVG) rendering library"
-HOMEPAGE="https://wiki.gnome.org/Projects/LibRsvg"
+HOMEPAGE="https://wiki.gnome.org/Projects/LibRsvg https://gitlab.gnome.org/GNOME/librsvg"
 
 LICENSE="LGPL-2+"
 SLOT="2"
-KEYWORDS="~amd64 ~arm ~arm64 ~ppc ~ppc64 ~riscv ~x86"
+KEYWORDS="amd64 arm arm64 ~ppc ppc64 ~riscv x86"
 
-IUSE="+introspection +vala"
-REQUIRED_USE="vala? ( introspection )"
+IUSE="gtk-doc +introspection +vala"
+REQUIRED_USE="
+	gtk-doc? ( introspection )
+	vala? ( introspection )
+"
+RESTRICT="test" # Lots of issues on 32bit builds, 64bit build seems to get into an infinite compilation sometimes, etc.
 
 RDEPEND="
-	>=x11-libs/cairo-1.16.0[glib,${MULTILIB_USEDEP}]
+	>=x11-libs/cairo-1.16.0[glib,svg,${MULTILIB_USEDEP}]
 	>=media-libs/freetype-2.9:2[${MULTILIB_USEDEP}]
 	>=x11-libs/gdk-pixbuf-2.20:2[introspection?,${MULTILIB_USEDEP}]
 	>=dev-libs/glib-2.50.0:2[${MULTILIB_USEDEP}]
 	>=media-libs/harfbuzz-2.0.0:=[${MULTILIB_USEDEP}]
 	>=dev-libs/libxml2-2.9.1-r4:2[${MULTILIB_USEDEP}]
-	>=x11-libs/pango-1.46.0[${MULTILIB_USEDEP}]
+	>=x11-libs/pango-1.48.11[${MULTILIB_USEDEP}]
 
 	introspection? ( >=dev-libs/gobject-introspection-0.10.8:= )
 "
 DEPEND="${RDEPEND}
-	>=virtual/rust-1.52[${MULTILIB_USEDEP}]
+	>=virtual/rust-1.56[${MULTILIB_USEDEP}]
+	${PYTHON_DEPS}
+	$(python_gen_any_dep 'dev-python/docutils[${PYTHON_USEDEP}]')
+	gtk-doc? ( dev-util/gi-docgen )
 	virtual/pkgconfig
 	vala? ( $(vala_depend) )
+
+	dev-libs/gobject-introspection-common
+	dev-libs/vala-common
 "
-# >=gtk-doc-am-1.13, gobject-introspection-common, vala-common needed by eautoreconf
+# dev-libs/gobject-introspection-common, dev-libs/vala-common needed by eautoreconf
 
 QA_FLAGS_IGNORED="
 	usr/bin/rsvg-convert
@@ -61,18 +71,21 @@ multilib_src_configure() {
 		--disable-static
 		--disable-debug
 		--disable-tools # the tools/ subdirectory is useful only for librsvg devs
+		$(multilib_native_use_enable gtk-doc)
 		$(multilib_native_use_enable introspection)
 		$(multilib_native_use_enable vala)
 		--enable-pixbuf-loader
 	)
 
-	myconf+=(
+	if ! multilib_is_native_abi; then
+		myconf+=(
 			# Set the rust target, which can differ from CHOST
 			RUST_TARGET="$(rust_abi)"
 			# RUST_TARGET is only honored if cross_compiling, but non-native ABIs aren't cross as
 			# far as C parts and configure auto-detection are concerned as CHOST equals CBUILD
 			cross_compiling=yes
-	)
+		)
+	fi
 
 	ECONF_SOURCE=${S} \
 	gnome2_src_configure "${myconf[@]}"
@@ -83,8 +96,6 @@ multilib_src_configure() {
 }
 
 multilib_src_compile() {
-	# causes segfault if set, see bug #411765
-	unset __GL_NO_DSO_FINALIZER
 	gnome2_src_compile
 }
 
@@ -94,16 +105,17 @@ multilib_src_install() {
 
 multilib_src_install_all() {
 	find "${ED}" -name '*.la' -delete || die
+
+	if use gtk-doc; then
+		mkdir -p "${ED}"/usr/share/gtk-doc/html/ || die
+		mv "${ED}"/usr/share/doc/Rsvg-2.0 "${ED}"/usr/share/gtk-doc/html/ || die
+	fi
 }
 
 pkg_postinst() {
-	# causes segfault if set, see bug 375615
-	unset __GL_NO_DSO_FINALIZER
 	multilib_foreach_abi gnome2_pkg_postinst
 }
 
 pkg_postrm() {
-	# causes segfault if set, see bug 375615
-	unset __GL_NO_DSO_FINALIZER
 	multilib_foreach_abi gnome2_pkg_postrm
 }
