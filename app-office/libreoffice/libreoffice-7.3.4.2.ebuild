@@ -155,6 +155,7 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	>=media-libs/libcdr-0.1.0
 	>=media-libs/libepoxy-1.3.1
 	>=media-libs/libfreehand-0.1.0
+	media-libs/libjpeg-turbo:=
 	media-libs/libpagemaker
 	>=media-libs/libpng-1.4:0=
 	>=media-libs/libvisio-0.1.0
@@ -165,7 +166,6 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	net-misc/curl
 	sci-mathematics/lpsolve
 	sys-libs/zlib
-	virtual/jpeg:0
 	virtual/opengl
 	x11-libs/cairo
 	x11-libs/libXinerama
@@ -248,6 +248,8 @@ DEPEND="${COMMON_DEPEND}
 	)
 "
 RDEPEND="${COMMON_DEPEND}
+	acct-group/libreoffice
+	acct-user/libreoffice
 	!app-office/libreoffice-bin
 	!app-office/libreoffice-bin-debug
 	media-fonts/liberation-fonts
@@ -267,7 +269,7 @@ BDEPEND="
 	virtual/pkgconfig
 	clang? (
 		|| (
-            (
+			(
 				sys-devel/clang:14
 				sys-devel/llvm:14
 				=sys-devel/lld-14*	)
@@ -277,9 +279,6 @@ BDEPEND="
 			(	sys-devel/clang:12
 				sys-devel/llvm:12
 				=sys-devel/lld-12*	)
-			(	sys-devel/clang:11
-				sys-devel/llvm:11
-				=sys-devel/lld-11*	)
 		)
 	)
 	odk? ( >=app-doc/doxygen-1.8.4 )
@@ -299,9 +298,11 @@ PATCHES=(
 	"${FILESDIR}/${PN}-5.3.4.2-kioclient5.patch"
 	"${FILESDIR}/${PN}-6.1-nomancompress.patch"
 	"${FILESDIR}/${PN}-7.2.0.4-qt5detect.patch"
-	
-	# TODO upstream
+
+	# TODO: upstream
 	"${FILESDIR}/${PN}-7.2.6.2-poppler-22.03.0.patch" # by Archlinux
+	"${FILESDIR}/${PN}-7.3.3.2-Import-FreeBSD-patch-for-Poppler-22.04.0-build.patch" # from FreeBSD
+	"${FILESDIR}/${PN}-7.3.3.2-Add-missing-nSize-set-for-Poppler-22.04.0.patch" # fixup for FreeBSD patch
 
 	# x32 ABI
 	"${FILESDIR}/${PN}-x32-configure.patch"
@@ -573,10 +574,10 @@ src_configure() {
 			#--with-jdk-home=$(java-config --jdk-home 2>/dev/null)
 			--with-jvm-path="${EPREFIX}/usr/lib/"
 		)
-		if has_version "dev-java/openjdk:15"; then
-			myeconfargs+=( -with-jdk-home="${EPREFIX}/usr/$(get_libdir)/openjdk-15" )
-		elif has_version "dev-java/openjdk-bin:15"; then
-			myeconfargs+=( --with-jdk-home="/opt/openjdk-bin-15" )
+		if has_version "dev-java/openjdk:11"; then
+			myeconfargs+=( --with-jdk-home="${EPREFIX}/usr/$(get_libdir)/openjdk-11" )
+		elif has_version "dev-java/openjdk-bin:11"; then
+			myeconfargs+=( --with-jdk-home="${EPREFIX}/opt/openjdk-bin-11" )
 		fi
 
 		use libreoffice_extensions_scripting-beanshell && \
@@ -659,6 +660,9 @@ EOF
 			dosym -r ${loprogdir}/__pycache__/${pyc} $(python_get_sitedir)/__pycache__/${pyc}
 		done < <(find "${D}"${lodir}/program -type f -name ${py/.py/*.pyc} -print0)
 	done
+
+	newinitd "${FILESDIR}/libreoffice.initd" libreoffice
+	newconfd "${FILESDIR}/libreoffice.confd" libreoffice
 }
 
 pkg_postinst() {
