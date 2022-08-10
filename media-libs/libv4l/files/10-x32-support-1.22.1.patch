@@ -1,0 +1,56 @@
+diff -ura a/include/linux/videodev2.h b/include/linux/videodev2.h
+--- a/include/linux/videodev2.h	2021-10-16 05:28:31.000000000 -0400
++++ b/include/linux/videodev2.h	2022-08-10 01:12:40.127299743 -0400
+@@ -802,6 +802,33 @@
+ #define V4L2_FMT_FLAG_CSC_HSV_ENC		V4L2_FMT_FLAG_CSC_YCBCR_ENC
+ #define V4L2_FMT_FLAG_CSC_QUANTIZATION		0x0100
+ 
++struct kernel_v4l2_timeval {
++	long tv_sec;
++	long tv_usec;
++};
++
++struct kernel_v4l2_timespec
++{
++#ifdef __USE_TIME_BITS64
++  __time64_t tv_sec;		/* Seconds.  */
++#else
++  __time_t tv_sec;		/* Seconds.  */
++#endif
++#if __WORDSIZE == 64 \
++  || (defined __SYSCALL_WORDSIZE && __SYSCALL_WORDSIZE == 64) \
++  || (__TIMESIZE == 32 && !defined __USE_TIME_BITS64)
++  __syscall_slong_t tv_nsec;	/* Nanoseconds.  */
++#else
++# if __BYTE_ORDER == __BIG_ENDIAN
++  int: 32;           /* Padding.  */
++  long int tv_nsec;  /* Nanoseconds.  */
++# else
++  long int tv_nsec;  /* Nanoseconds.  */
++  int: 32;           /* Padding.  */
++# endif
++#endif
++};
++
+ 	/* Frame Size and frame rate enumeration */
+ /*
+  *	F R A M E   S I Z E   E N U M E R A T I O N
+@@ -1026,7 +1053,7 @@
+ 	__u32			bytesused;
+ 	__u32			flags;
+ 	__u32			field;
+-	struct timeval		timestamp;
++	struct kernel_v4l2_timeval	timestamp;
+ 	struct v4l2_timecode	timecode;
+ 	__u32			sequence;
+ 
+@@ -2404,7 +2431,7 @@
+ 	} u;
+ 	__u32				pending;
+ 	__u32				sequence;
+-	struct timespec			timestamp;
++	struct kernel_v4l2_timespec			timestamp;
+ 	__u32				id;
+ 	__u32				reserved[8];
+ };
+

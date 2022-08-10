@@ -1,0 +1,24 @@
+diff -ura a/utils/media-ctl/libmediactl.c b/utils/media-ctl/libmediactl.c
+--- a/utils/media-ctl/libmediactl.c	2017-01-22 12:33:34.000000000 -0500
++++ b/utils/media-ctl/libmediactl.c	2022-08-07 23:28:25.668926101 -0400
+@@ -213,7 +213,7 @@
+ 		     __u32 flags)
+ {
+ 	struct media_link_desc ulink = { { 0 } };
+-	struct media_link *link;
++	struct media_link *link = NULL;
+ 	unsigned int i;
+ 	int ret;
+ 
+@@ -257,8 +257,10 @@
+ 		goto done;
+ 	}
+ 
+-	link->flags = ulink.flags;
+-	link->twin->flags = ulink.flags;
++	if (link) {
++		link->flags = ulink.flags;
++		link->twin->flags = ulink.flags;
++	}
+ 
+ 	ret = 0;
