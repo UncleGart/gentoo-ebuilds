@@ -6,8 +6,8 @@
 
 EAPI=8
 
-PYTHON_COMPAT=( python3_{9,10} )
-PYTHON_REQ_USE="threads(+),xml"
+PYTHON_COMPAT=( python3_{8..11} )
+PYTHON_REQ_USE="threads(+),xml(+)"
 
 MY_PV="${PV/_alpha/.alpha}"
 MY_PV="${MY_PV/_beta/.beta}"
@@ -50,8 +50,10 @@ ADDONS_SRC=(
 	# not packaged in Gentoo, https://www.netlib.org/fp/dtoa.c
 	"${ADDONS_URI}/dtoa-20180411.tgz"
 	# not packaged in Gentoo, https://skia.org/
-	"${ADDONS_URI}/skia-m97-a7230803d64ae9d44f4e1282444801119a3ae967.tar.xz"
+	"${ADDONS_URI}/skia-m103-b301ff025004c9cd82816c86c547588e6c24b466.tar.xz"
+	"${ADDONS_URI}/libcmis-0.5.2.tar.xz"
 	"${ADDONS_URI}/libcuckoo-93217f8d391718380c508a722ab9acd5e9081233.tar.gz"
+	"${ADDONS_URI}dragonbox-1.1.0.tar.gz"
 	"base? (
 		${ADDONS_URI}/commons-logging-1.2-src.tar.gz
 		${ADDONS_URI}/ba2930200c9f019c2d93a8c88c651a0f-flow-engine-0.9.4.zip
@@ -131,7 +133,7 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	>=dev-cpp/clucene-2.3.3.4-r2
 	dev-db/unixODBC
 	dev-lang/perl
-	>=dev-libs/boost-1.72.0:=[nls]
+	dev-libs/boost:=[nls]
 	dev-libs/expat
 	dev-libs/hyphen
 	dev-libs/icu:=
@@ -155,17 +157,17 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	>=media-libs/libcdr-0.1.0
 	>=media-libs/libepoxy-1.3.1
 	>=media-libs/libfreehand-0.1.0
+	media-libs/libjpeg-turbo:=
 	media-libs/libpagemaker
 	>=media-libs/libpng-1.4:0=
 	>=media-libs/libvisio-0.1.0
 	media-libs/libzmf
 	media-libs/openjpeg:=
-	media-libs/zxing-cpp
+	media-libs/zxing-cpp:=
 	>=net-libs/neon-0.31.1:=
 	net-misc/curl
 	sci-mathematics/lpsolve
 	sys-libs/zlib
-	virtual/jpeg:0
 	virtual/opengl
 	x11-libs/cairo
 	x11-libs/libXinerama
@@ -215,7 +217,7 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	libreoffice_extensions_scripting-javascript? ( >=dev-java/rhino-1.7.14:1.6 )
 	mariadb? ( dev-db/mariadb-connector-c:= )
 	!mariadb? ( dev-db/mysql-connector-c:= )
-	pdfimport? ( app-text/poppler:=[cxx] )
+	pdfimport? ( >=app-text/poppler-22.06:=[cxx] )
 	postgres? ( >=dev-db/postgresql-9.0:*[kerberos] )
 "
 # FIXME: cppunit should be moved to test conditional
@@ -235,10 +237,7 @@ DEPEND="${COMMON_DEPEND}
 	x11-libs/libXtst
 	java? (
 		dev-java/ant-core
-		|| (
-			dev-java/openjdk:15
-			dev-java/openjdk-bin:15
-		)
+		>=virtual/jdk-11
 	)
 	test? (
 		app-crypt/gnupg
@@ -254,34 +253,27 @@ RDEPEND="${COMMON_DEPEND}
 	!app-office/libreoffice-bin-debug
 	media-fonts/liberation-fonts
 	|| ( x11-misc/xdg-utils kde-plasma/kde-cli-tools )
-	java? ( || (
-		dev-java/openjdk:15
-		dev-java/openjdk-jre-bin:15
-		>=virtual/jre-1.8
-	) )
+	java? ( >=virtual/jre-11 )
 	kde? ( kde-frameworks/breeze-icons:* )
 "
 BDEPEND="
 	dev-util/intltool
+	sys-apps/which
 	sys-devel/bison
 	sys-devel/flex
 	sys-devel/gettext
 	virtual/pkgconfig
 	clang? (
 		|| (
-            (
-				sys-devel/clang:14
+			(	sys-devel/clang:15
+				sys-devel/llvm:15
+				=sys-devel/lld-15*	)
+			(	sys-devel/clang:14
 				sys-devel/llvm:14
 				=sys-devel/lld-14*	)
 			(	sys-devel/clang:13
 				sys-devel/llvm:13
 				=sys-devel/lld-13*	)
-			(	sys-devel/clang:12
-				sys-devel/llvm:12
-				=sys-devel/lld-12*	)
-			(	sys-devel/clang:11
-				sys-devel/llvm:11
-				=sys-devel/lld-11*	)
 		)
 	)
 	odk? ( >=app-doc/doxygen-1.8.4 )
@@ -301,11 +293,6 @@ PATCHES=(
 	"${FILESDIR}/${PN}-5.3.4.2-kioclient5.patch"
 	"${FILESDIR}/${PN}-6.1-nomancompress.patch"
 	"${FILESDIR}/${PN}-7.2.0.4-qt5detect.patch"
-	
-	# TODO: upstream
-	"${FILESDIR}/${PN}-7.2.6.2-poppler-22.03.0.patch" # by Archlinux
-	"${FILESDIR}/${PN}-7.3.3.2-Import-FreeBSD-patch-for-Poppler-22.04.0-build.patch" # from FreeBSD
-	"${FILESDIR}/${PN}-7.3.3.2-Add-missing-nSize-set-for-Poppler-22.04.0.patch" # fixup for FreeBSD patch
 
 	# x32 ABI
 	"${FILESDIR}/${PN}-x32-configure.patch"
@@ -325,16 +312,10 @@ _check_reqs() {
 }
 
 pkg_pretend() {
-	if use x86; then
-		elog "Unfortunately for packaging reasons on x86, various Java-based wizards,"
-		elog "most notably Report Builder in LibreOffice Base, will not be available."
-		elog "See also: https://bugs.gentoo.org/785640"
-	else
-		use base ||
-			ewarn "If you plan to use Base application you must enable USE base."
-		use java ||
-			ewarn "Without USE java, several wizards are not going to be available."
-	fi
+	use base ||
+		ewarn "If you plan to use Base application you must enable USE base."
+	use java ||
+		ewarn "Without USE java, several wizards are not going to be available."
 
 	[[ ${MERGE_TYPE} != binary ]] && _check_reqs pkg_pretend
 }
@@ -403,7 +384,8 @@ src_prepare() {
 			-e ":Keywords: s:pdf;::" \
 			sysui/desktop/menus/draw.desktop || die
 	fi
-	sed -i 's/=thin//g' solenv/gbuild/platform/com_GCC_defs.mk
+
+	export ac_cv_lib_gpgmepp_progress_callback=yes
 }
 
 src_configure() {
@@ -434,6 +416,10 @@ src_configure() {
 		CXX=${CHOST}-g++
 		NM=gcc-nm
 		RANLIB=gcc-ranlib
+
+		# Apparently the Clang flags get used even for GCC builds sometimes.
+		# bug #838115
+		sed -i -e "s/-flto=thin/-flto/" solenv/gbuild/platform/com_GCC_defs.mk || die
 	fi
 
 	if use custom-cflags ; then
@@ -498,7 +484,7 @@ src_configure() {
 		--enable-release-build
 		--disable-breakpad
 		--disable-bundle-mariadb
-		--disable-cmis
+		--disable-libcmis
 		--disable-epm
 		--disable-fetch-external
 		--disable-gtk3-kde5
@@ -525,8 +511,10 @@ src_configure() {
 		--without-helppack-integration
 		--with-system-gpgmepp
 		--without-system-cuckoo
+		--without-system-dragonbox
 		--without-system-jfreereport
-		--without-system-libcmis
+		#--without-system-libcmis
+		--without-system-libfixmath
 		--without-system-sane
 		$(use_enable base report-builder)
 		$(use_enable bluetooth sdremote-bluetooth)
@@ -574,14 +562,8 @@ src_configure() {
 			--without-junit
 			--without-system-hsqldb
 			--with-ant-home="${ANT_HOME}"
-			#--with-jdk-home=$(java-config --jdk-home 2>/dev/null)
-			--with-jvm-path="${EPREFIX}/usr/lib/"
+			--with-jdk-home="${JAVA_HOME}"
 		)
-		if has_version "dev-java/openjdk:11"; then
-			myeconfargs+=( --with-jdk-home="${EPREFIX}/usr/$(get_libdir)/openjdk-11" )
-		elif has_version "dev-java/openjdk-bin:11"; then
-			myeconfargs+=( --with-jdk-home="${EPREFIX}/opt/openjdk-bin-11" )
-		fi
 
 		use libreoffice_extensions_scripting-beanshell && \
 			myeconfargs+=( --with-beanshell-jar=$(java-pkg_getjar bsh bsh.jar) )
@@ -607,12 +589,11 @@ src_compile() {
 }
 
 src_test() {
-	make unitcheck || die
-	make slowcheck || die
+	emake unitcheck
+	emake slowcheck
 }
 
 src_install() {
-	# This is not Makefile so no buildserver
 	emake DESTDIR="${D}" distro-pack-install -o build -o check
 
 	# bug 593514
@@ -663,7 +644,7 @@ EOF
 			dosym -r ${loprogdir}/__pycache__/${pyc} $(python_get_sitedir)/__pycache__/${pyc}
 		done < <(find "${D}"${lodir}/program -type f -name ${py/.py/*.pyc} -print0)
 	done
-	
+
 	newinitd "${FILESDIR}/libreoffice.initd" libreoffice
 	newconfd "${FILESDIR}/libreoffice.confd" libreoffice
 }
