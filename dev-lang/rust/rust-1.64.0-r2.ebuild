@@ -1,6 +1,7 @@
 # Copyright 1999-2022 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
+# Based on the official Gentoo Rust ebuild + patches from pg_overlay
 # Tested to build for x32 ABI
 
 EAPI=8
@@ -43,7 +44,7 @@ LLVM_TARGET_USEDEPS=${ALL_LLVM_TARGETS[@]/%/(-)?}
 
 LICENSE="|| ( MIT Apache-2.0 ) BSD-1 BSD-2 BSD-4 UoI-NCSA"
 
-IUSE="clippy cpu_flags_x86_sse2 debug dist doc miri nightly parallel-compiler profiler rls rustfmt rust-src system-bootstrap system-llvm test wasm ${ALL_LLVM_TARGETS[*]}"
+IUSE="clippy cpu_flags_x86_sse2 debug dist doc llvm-libunwind miri nightly parallel-compiler profiler rls rustfmt rust-analyzer rust-src system-bootstrap system-llvm test wasm ${ALL_LLVM_TARGETS[*]}"
 
 # Please keep the LLVM dependency block separate. Since LLVM is slotted,
 # we need to *really* make sure we're not pulling more than one slot
@@ -51,7 +52,7 @@ IUSE="clippy cpu_flags_x86_sse2 debug dist doc miri nightly parallel-compiler pr
 
 # How to use it:
 # List all the working slots in LLVM_VALID_SLOTS, newest first.
-LLVM_VALID_SLOTS=( 14 )
+LLVM_VALID_SLOTS=( 15 14 )
 LLVM_MAX_SLOT="${LLVM_VALID_SLOTS[0]}"
 
 # splitting usedeps needed to avoid CI/pkgcheck's UncheckableDep limitation
@@ -107,18 +108,13 @@ DEPEND="
 	net-misc/curl:=[http2,ssl]
 	sys-libs/zlib:=
 	dev-libs/openssl:0=
-	elibc_musl? ( 
-		|| (
-			>=sys-libs/libunwind-1.0.1-r1[${MULTILIB_USEDEP}]
-			>=sys-libs/llvm-libunwind-3.9.0-r1[${MULTILIB_USEDEP}]
-		)
-	)
 	system-llvm? (
 		${LLVM_DEPEND}
-		>=sys-devel/clang-runtime-8.0[libcxx,${MULTILIB_USEDEP}]
-		|| (
-			>=sys-libs/libunwind-1.0.1-r1[${MULTILIB_USEDEP}]
-			>=sys-libs/llvm-libunwind-3.9.0-r1[${MULTILIB_USEDEP}]
+		llvm-libunwind? ( sys-libs/llvm-libunwind:= )
+	)
+	!system-llvm? (
+		!llvm-libunwind? (
+			elibc_musl? ( sys-libs/libunwind:= )
 		)
 	)
 "
@@ -171,8 +167,7 @@ VERIFY_SIG_OPENPGP_KEY_PATH=${BROOT}/usr/share/openpgp-keys/rust.asc
 
 PATCHES=(
 	"${FILESDIR}"/1.55.0-ignore-broken-and-non-applicable-tests.patch
-	"${FILESDIR}"/1.61.0-gentoo-musl-target-specs.patch
-	"${FILESDIR}"/0001-Use-lld-provided-by-system-for-wasm-1.61.patch
+	"${FILESDIR}"/1.62.1-musl-dynamic-linking.patch
 	"${FILESDIR}"/0002-compiler-Change-LLVM-targets-1.61-x32.patch
 )
 PKG_CONFIG_ALLOW_CROSS=1
@@ -263,8 +258,28 @@ pkg_setup() {
 	fi
 }
 
+esetup_unwind_hack() {
+	# https://bugs.gentoo.org/870280
+	# this is a hack needed to bootstrap with libgcc_s linked tarball on llvm-libunwind system.
+	# it should trigger for internal bootstrap or system-bootstrap with rust-bin.
+	# the whole idea is for stage0 to bootstrap with fake libgcc_s.
+	# final stage will receive -L${T}/lib but not -lgcc_s args, producing clean compiler.
+	local fakelib="${T}/fakelib"
+	mkdir -p "${fakelib}" || die
+	# we need both symlinks, one for cargo runtime, other for linker.
+	ln -s "${ESYSROOT}/usr/lib/libunwind.so" "${fakelib}/libgcc_s.so.1" || die
+	ln -s "${ESYSROOT}/usr/lib/libunwind.so" "${fakelib}/libgcc_s.so" || die
+	export LD_LIBRARY_PATH="${fakelib}"
+	export RUSTFLAGS+=" -L${fakelib}"
+	# this is a literally magic variable that gets through cargo cache, without it some
+	# crates ignore RUSTFLAGS.
+	# this variable can not contain leading space.
+	export MAGIC_EXTRA_RUSTFLAGS+="${MAGIC_EXTRA_RUSTFLAGS:+ }-L${fakelib}"
+}
+
 src_prepare() {
 	if ! use system-bootstrap; then
+		has_version sys-devel/gcc || esetup_unwind_hack
 		local rust_stage0_root="${WORKDIR}"/rust-stage0
 		local rust_stage0="rust-${RUST_STAGE0_VERSION}-$(rust_abi)"
 		if use abi_x86_x32; then
@@ -342,25 +357,14 @@ src_configure() {
 	fi
 	rust_targets="${rust_targets#,}"
 
-	local tools="\"cargo\","
-	if use clippy; then
-		tools="\"clippy\",$tools"
-	fi
-	if use miri; then
-		tools="\"miri\",$tools"
-	fi
-	if use profiler; then
-		tools="\"rust-demangler\",$tools"
-	fi
-	if use rls; then
-		tools="\"rls\",\"analysis\",$tools"
-	fi
-	if use rustfmt; then
-		tools="\"rustfmt\",$tools"
-	fi
-	if use rust-src; then
-		tools="\"src\",$tools"
-	fi
+	local tools='"cargo"'
+	use clippy && tools+=',"clippy"'
+	use miri && tools+=',"miri"'
+	use profiler && tools+=',"rust-demangler"'
+	use rls && tools+=',"rls","analysis"'
+	use rustfmt && tools+=',"rustfmt"'
+	use rust-analyzer && tools+=',"rust-analyzer"'
+	use rust-src && tools+=',"src"'
 
 	local rust_stage0_root
 	if use system-bootstrap; then
@@ -468,7 +472,7 @@ src_configure() {
 		channel = "$(usex nightly nightly stable)"
 		description = "gentoo"
 		rpath = false
-		verbose-tests = false
+		verbose-tests = true
 		optimize-tests = $(toml_usex !debug)
 		codegen-tests = $(toml_usex debug)
 		dist-src = $(toml_usex debug)
@@ -480,8 +484,6 @@ src_configure() {
 		deny-warnings = $(usex wasm $(usex doc false true) true)
 		backtrace-on-ice = true
 		jemalloc = false
-		llvm-libunwind = "$(usex system-llvm system)"
-		
 		[dist]
 		src-tarball = false
 		compression-formats = ["xz"]
@@ -491,9 +493,7 @@ src_configure() {
 		rust_target=$(rust_abi $(get_abi_CHOST ${v##*.}))
 		arch_cflags="$(get_abi_CFLAGS ${v##*.})"
 
-		cat <<- _EOF_ >> "${S}"/config.env
-			CFLAGS_${rust_target}=${arch_cflags}
-		_EOF_
+		export CFLAGS_${rust_target//-/_}="${arch_cflags}"
 
 		cat <<- _EOF_ >> "${S}"/config.toml
 			[target.${rust_target}]
@@ -502,16 +502,18 @@ src_configure() {
 			cxx = "$(tc-getCXX)"
 			linker = "$(tc-getCC)"
 			ranlib = "$(tc-getRANLIB)"
+			llvm-libunwind = "$(usex llvm-libunwind $(usex system-llvm system in-tree) no)"
 		_EOF_
-		# librustc_target/spec/linux_musl_base.rs sets base.crt_static_default = true;
-		if use elibc_musl; then
-			cat <<- _EOF_ >> "${S}"/config.toml
-				crt-static = false
-			_EOF_
-		fi
 		if use system-llvm; then
 			cat <<- _EOF_ >> "${S}"/config.toml
 				llvm-config = "$(get_llvm_prefix "${LLVM_MAX_SLOT}")/bin/llvm-config"
+			_EOF_
+		fi
+		# by default librustc_target/spec/linux_musl_base.rs sets base.crt_static_default = true;
+		# but we patch it and set to false here as well
+		if use elibc_musl; then
+			cat <<- _EOF_ >> "${S}"/config.toml
+				crt-static = false
 			_EOF_
 		fi
 	done
@@ -609,11 +611,12 @@ src_configure() {
 
 	einfo "Rust configured with the following flags:"
 	echo
-	echo RUSTFLAGS="${RUSTFLAGS:-}"
-	echo RUSTFLAGS_BOOTSTRAP="${RUSTFLAGS_BOOTSTRAP:-}"
-	echo RUSTFLAGS_NOT_BOOTSTRAP="${RUSTFLAGS_NOT_BOOTSTRAP:-}"
+	echo RUSTFLAGS="\"${RUSTFLAGS}\""
+	echo RUSTFLAGS_BOOTSTRAP="\"${RUSTFLAGS_BOOTSTRAP}\""
+	echo RUSTFLAGS_NOT_BOOTSTRAP="\"${RUSTFLAGS_NOT_BOOTSTRAP}\""
+	echo MAGIC_EXTRA_RUSTFLAGS="\"${MAGIC_EXTRA_RUSTFLAGS}\""
 	env | grep "CARGO_TARGET_.*_RUSTFLAGS="
-	cat "${S}"/config.env || die
+	env | grep "CFLAGS_.*"
 	echo
 	einfo "config.toml contents:"
 	cat "${S}"/config.toml || die
@@ -627,11 +630,7 @@ src_compile() {
 		OPENSSL_DIR=/usr/libx32/
 	fi
 	# we need \n IFS to have config.env with spaces loaded properly. #734018
-	(
-	IFS=$'\n'
-	env $(cat "${S}"/config.env) RUST_BACKTRACE=1\
-		"${EPYTHON}" ./x.py build -vv --config="${S}"/config.toml -j$(makeopts_jobs) || die
-	)
+	RUST_BACKTRACE=1 "${EPYTHON}" ./x.py build -vv --config="${S}"/config.toml -j$(makeopts_jobs) || die
 }
 
 src_test() {
@@ -716,6 +715,7 @@ src_install() {
 	use profiler && symlinks+=( rust-demangler )
 	use rls && symlinks+=( rls )
 	use rustfmt && symlinks+=( rustfmt cargo-fmt )
+	use rust-analyzer && symlinks+=( rust-analyzer )
 
 	einfo "installing eselect-rust symlinks and paths: ${symlinks[@]}"
 	local i
@@ -744,8 +744,6 @@ src_install() {
 	newenvd - "50${P}" <<-_EOF_
 		LDPATH="${EPREFIX}/usr/lib/rust/lib"
 		MANPATH="${EPREFIX}/usr/lib/rust/man"
-		$(use amd64 && usex elibc_musl 'CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-C target-feature=-crt-static"' '')
-		$(use arm64 && usex elibc_musl 'CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-C target-feature=-crt-static"' '')
 	_EOF_
 
 	rm -rf "${ED}/usr/lib/${PN}/${PV}"/*.old || die
@@ -782,6 +780,9 @@ src_install() {
 	if use rustfmt; then
 		echo /usr/bin/rustfmt >> "${T}/provider-${P}"
 		echo /usr/bin/cargo-fmt >> "${T}/provider-${P}"
+	fi
+	if use rust-analyzer; then
+		echo /usr/bin/rust-analyzer >> "${T}/provider-${P}"
 	fi
 
 	insinto /etc/env.d/rust
