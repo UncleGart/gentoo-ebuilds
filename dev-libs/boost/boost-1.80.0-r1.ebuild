@@ -1,24 +1,22 @@
-# Copyright 1999-2021 Gentoo Authors
+# Copyright 1999-2022 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-PYTHON_COMPAT=( python3_{8..10} )
+PYTHON_COMPAT=( python3_{8..11} )
 
 inherit flag-o-matic multiprocessing python-r1 toolchain-funcs multilib-minimal
 
 MY_PV="$(ver_rs 1- _)"
-MAJOR_V="$(ver_cut 1-2)"
 
 DESCRIPTION="Boost Libraries for C++"
 HOMEPAGE="https://www.boost.org/"
 SRC_URI="https://boostorg.jfrog.io/artifactory/main/release/${PV}/source/boost_${MY_PV}.tar.bz2"
-SRC_URI+=" https://dev.gentoo.org/~sam/distfiles/${CATEGORY}/${PN}/${P}-patches-1.tar.xz"
 S="${WORKDIR}/${PN}_${MY_PV}"
 
 LICENSE="Boost-1.0"
-SLOT="0/${PV}" # ${PV} instead ${MAJOR_V} due to bug 486122
-KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~ia64 ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~amd64-linux ~x86-linux ~ppc-macos ~x64-macos ~sparc-solaris ~sparc64-solaris ~x64-solaris ~x86-solaris ~x86-winnt"
+SLOT="0/${PV}" # ${PV} instead of the major version due to bug 486122
+KEYWORDS="~alpha amd64 arm arm64 hppa ~ia64 ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~ppc-macos ~x64-macos ~sparc-solaris ~sparc64-solaris ~x64-solaris ~x86-solaris ~x86-winnt"
 IUSE="bzip2 context debug doc icu lzma +nls mpi numpy python tools zlib zstd"
 REQUIRED_USE="python? ( ${PYTHON_REQUIRED_USE} )"
 # the tests will never fail because these are not intended as sanity
@@ -29,8 +27,6 @@ REQUIRED_USE="python? ( ${PYTHON_REQUIRED_USE} )"
 RESTRICT="test"
 
 RDEPEND="
-	!app-admin/eselect-boost
-	!dev-libs/boost-numpy
 	!<dev-libs/leatherman-1.12.0-r1
 	bzip2? ( app-arch/bzip2:=[${MULTILIB_USEDEP}] )
 	icu? ( >=dev-libs/icu-3.6:=[${MULTILIB_USEDEP}] )
@@ -44,19 +40,21 @@ RDEPEND="
 	zlib? ( sys-libs/zlib:=[${MULTILIB_USEDEP}] )
 	zstd? ( app-arch/zstd:=[${MULTILIB_USEDEP}] )"
 DEPEND="${RDEPEND}"
-BDEPEND=">=dev-util/boost-build-${MAJOR_V}-r2"
+BDEPEND=">=dev-util/b2-4.9.2"
 
 PATCHES=(
 	"${FILESDIR}"/${PN}-1.76.0-fix-x32-build.patch
-	"${WORKDIR}"/${PN}-1.71.0-disable_icu_rpath.patch
-	"${WORKDIR}"/${PN}-1.71.0-context-x32.patch
-	"${WORKDIR}"/${PN}-1.71.0-build-auto_index-tool.patch
+	"${FILESDIR}"/${PN}-1.80.0-disable_icu_rpath.patch
+	"${FILESDIR}"/${PN}-1.79.0-context-x32.patch
+	"${FILESDIR}"/${PN}-1.79.0-build-auto_index-tool.patch
 	# Boost.MPI's __init__.py doesn't work on Py3
-	"${WORKDIR}"/${PN}-1.73-boost-mpi-python-PEP-328.patch
-	"${WORKDIR}"/${PN}-1.74-CVE-2012-2677.patch
-	"${WORKDIR}"/${PN}-1.76-sparc-define.patch
-	"${WORKDIR}"/${PN}-1.77-math-deprecated-include.patch
-	"${WORKDIR}"/${PN}-1.77-geometry.patch
+	"${FILESDIR}"/${PN}-1.79.0-boost-mpi-python-PEP-328.patch
+	"${FILESDIR}"/${PN}-1.80.0-fix-mips1-transition.patch
+	# (upstreamed)
+	"${FILESDIR}"/${PN}-1.80.0-unordered-fix.patch
+	"${FILESDIR}"/${PN}-1.80.0-unary-function.patch
+	"${FILESDIR}"/${PN}-1.80.0-python3.11.patch
+	"${FILESDIR}"/${PN}-1.80.0-unordered-ftm-malloc.patch
 )
 
 python_bindings_needed() {
@@ -90,7 +88,7 @@ create_user-config.jam() {
 	fi
 
 	cat > "${user_config_jam}" <<- __EOF__ || die
-		using ${compiler} : ${compiler_version} : ${compiler_executable} : <cflags>"${CFLAGS}" <cxxflags>"${CXXFLAGS}" <linkflags>"${LDFLAGS}" ;
+		using ${compiler} : ${compiler_version} : ${compiler_executable} : <cflags>"${CFLAGS}" <cxxflags>"${CXXFLAGS}" <linkflags>"${LDFLAGS}" <archiver>"$(tc-getAR)" <ranlib>"$(tc-getRANLIB)" ;
 		${mpi_configuration}
 	__EOF__
 
@@ -160,18 +158,24 @@ src_configure() {
 	# Workaround for too many parallel processes requested, bug #506064
 	[[ "$(makeopts_jobs)" -gt 64 ]] && MAKEOPTS="${MAKEOPTS} -j64"
 
+	# We don't want to end up with -L/usr/lib on our linker lines
+	# which then gives us lots of
+	#   skipping incompatible /usr/lib/libc.a when searching for -lc
+	# warnings
+	[[ -n ${ESYSROOT} ]] && local icuarg="-sICU_PATH=${ESYSROOT}/usr"
+
 	OPTIONS=(
 		$(usex debug gentoodebug gentoorelease)
 		"-j$(makeopts_jobs)"
 		-q
 		-d+2
 		pch=off
-		$(usex icu "-sICU_PATH=${ESYSROOT}/usr" '--disable-icu boost.locale.icu=off')
+		$(usex icu "${icuarg}" '--disable-icu boost.locale.icu=off')
 		$(usev !mpi --without-mpi)
 		$(usev !nls --without-locale)
 		$(usev !context '--without-context --without-coroutine --without-fiber')
 		--without-stacktrace
-		--boost-build="${BROOT}"/usr/share/boost-build/src
+		--boost-build="${BROOT}"/usr/share/b2/src
 		--layout=system
 		# building with threading=single is currently not possible
 		# https://svn.boost.org/trac/boost/ticket/7105
@@ -191,8 +195,8 @@ src_configure() {
 		append-ldflags -Wl,-headerpad_max_install_names
 	fi
 
-	# Use C++14 globally as of 1.62
-	append-cxxflags -std=c++14
+	# Use C++17 globally as of 1.80
+	append-cxxflags -std=c++17
 }
 
 multilib_src_compile() {
