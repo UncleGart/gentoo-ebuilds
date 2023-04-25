@@ -50,7 +50,7 @@ PATCHES=(
 	"${FILESDIR}"/${PN}-1.79.0-boost-mpi-python-PEP-328.patch
 	"${FILESDIR}"/${PN}-1.80.0-fix-mips1-transition.patch
 	"${FILESDIR}"/${PN}-1.81.0-phoenix-multiple-definitions.patch
-
+    "${FILESDIR}"/${PN}-1.82.0-install-jam-x32.patch
 	# (upstreamed)
 )
 

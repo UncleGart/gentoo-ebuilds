@@ -1,0 +1,13 @@
+diff --git a/tools/boost_install/boost-install.jam b/tools/boost_install/boost-install.jam
+index d2c645c..aac24a3 100644
+--- a/tools/boost_install/boost-install.jam
++++ b/tools/boost_install/boost-install.jam
+@@ -159,7 +159,7 @@ rule generate-cmake-variant- ( target : sources * : properties * )
+ 
+     print.text "# address-model=$(address-model)" "" : true ;
+ 
+-    if $(address-model) = 32
++    if $(address-model) = 32 || $(address-model) = 32_64
+     {
+         print.text
+ 
