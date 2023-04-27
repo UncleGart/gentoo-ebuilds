@@ -1,0 +1,16 @@
+diff --git a/src/linux/thread.c b/src/linux/thread.c
+index 7c19736..f12b775 100644
+--- a/src/linux/thread.c
++++ b/src/linux/thread.c
+@@ -27,7 +27,11 @@
+ #include <limits.h>
+ #include <stdlib.h>
+ #include <sys/types.h>
++#if defined(__ILP32__) && defined(__x86_64__)
++#include <asm-generic/unistd.h>
++#else
+ #include <unistd.h>
++#endif
+ #include <sys/syscall.h>
+ #include <linux/futex.h>
+ 
