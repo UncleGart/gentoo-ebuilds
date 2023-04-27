@@ -1,12 +1,11 @@
-# Copyright 1999-2022 Gentoo Authors
+# Copyright 1999-2023 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 # This ebuild is taken from pg_overlay with the addition of x32 ABI patches
-# This version of LibreOffice is built with CMIS disabled
 
 EAPI=8
 
-PYTHON_COMPAT=( python3_{8..10} )
+PYTHON_COMPAT=( python3_{9..11} )
 PYTHON_REQ_USE="threads(+),xml(+)"
 
 MY_PV="${PV/_alpha/.alpha}"
@@ -29,6 +28,7 @@ inherit autotools bash-completion-r1 check-reqs flag-o-matic java-pkg-opt-2 mult
 DESCRIPTION="A full office productivity suite"
 HOMEPAGE="https://www.libreoffice.org"
 SRC_URI="branding? ( https://dev.gentoo.org/~dilfridge/distfiles/${BRANDING} )"
+SRC_URI+=" https://dev.gentoo.org/~asturm/distfiles/${PN}-7.5.2.2-loong-buildsys-fix.patch.xz"
 [[ -n ${PATCHSET} ]] && SRC_URI+=" https://dev.gentoo.org/~asturm/distfiles/${PATCHSET}"
 
 # Split modules following git/tarballs; Core MUST be first!
@@ -47,13 +47,12 @@ unset DEV_URI
 # These are bundles that can't be removed for now due to huge patchsets.
 # If you want them gone, patches are welcome.
 ADDONS_SRC=(
+	# not packaged in Gentoo
+	"${ADDONS_URI}/dragonbox-1.1.3.tar.gz"
 	# not packaged in Gentoo, https://www.netlib.org/fp/dtoa.c
 	"${ADDONS_URI}/dtoa-20180411.tgz"
 	# not packaged in Gentoo, https://skia.org/
 	"${ADDONS_URI}/skia-m103-b301ff025004c9cd82816c86c547588e6c24b466.tar.xz"
-	"${ADDONS_URI}/libcmis-0.5.2.tar.xz"
-	"${ADDONS_URI}/libcuckoo-93217f8d391718380c508a722ab9acd5e9081233.tar.gz"
-	"${ADDONS_URI}dragonbox-1.1.0.tar.gz"
 	"base? (
 		${ADDONS_URI}/commons-logging-1.2-src.tar.gz
 		${ADDONS_URI}/ba2930200c9f019c2d93a8c88c651a0f-flow-engine-0.9.4.zip
@@ -93,7 +92,6 @@ $(printf 'libreoffice_extensions_%s ' ${LO_EXTS})"
 REQUIRED_USE="${PYTHON_REQUIRED_USE}
 	base? ( firebird java )
 	bluetooth? ( dbus )
-	gtk? ( dbus )
 	libreoffice_extensions_nlpsolver? ( java )
 	libreoffice_extensions_scripting-beanshell? ( java )
 	libreoffice_extensions_scripting-javascript? ( java )
@@ -106,7 +104,7 @@ LICENSE="|| ( LGPL-3 MPL-1.1 )"
 SLOT="0"
 
 [[ ${MY_PV} == *9999* ]] || \
-KEYWORDS="~amd64 ~arm ~arm64 ~ppc64 ~x86 ~amd64-linux"
+KEYWORDS="~amd64 ~arm ~arm64 ~loong ~ppc64 ~riscv ~x86 ~amd64-linux"
 
 COMMON_DEPEND="${PYTHON_DEPS}
 	app-arch/unzip
@@ -120,7 +118,7 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	app-text/libexttextcat
 	app-text/liblangtag
 	>=app-text/libmspub-0.1.0
-	>=app-text/libmwaw-0.3.1
+	>=app-text/libmwaw-0.3.21
 	>=app-text/libnumbertext-1.0.6
 	>=app-text/libodfgen-0.1.0
 	app-text/libqxp
@@ -131,9 +129,10 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	app-text/mythes
 	dev-cpp/abseil-cpp:=
 	>=dev-cpp/clucene-2.3.3.4-r2
+	>=dev-cpp/libcmis-0.5.2-r2
 	dev-db/unixODBC
 	dev-lang/perl
-	>=dev-libs/boost-1.72.0:=[nls]
+	dev-libs/boost:=[nls]
 	dev-libs/expat
 	dev-libs/hyphen
 	dev-libs/icu:=
@@ -146,13 +145,13 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	dev-libs/nspr
 	dev-libs/nss
 	>=dev-libs/redland-1.0.16
-	>=dev-libs/xmlsec-1.2.28[nss]
+	>=dev-libs/xmlsec-1.2.35:=[nss]
 	>=games-engines/box2d-2.4.1:0
 	media-gfx/fontforge
 	media-gfx/graphite2
 	media-libs/fontconfig
 	>=media-libs/freetype-2.11.0-r1:2
-	>=media-libs/harfbuzz-0.9.42:=[graphite,icu]
+	>=media-libs/harfbuzz-5.1.0:=[graphite,icu]
 	media-libs/lcms:2
 	>=media-libs/libcdr-0.1.0
 	>=media-libs/libepoxy-1.3.1
@@ -161,12 +160,13 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	media-libs/libpagemaker
 	>=media-libs/libpng-1.4:0=
 	>=media-libs/libvisio-0.1.0
+	media-libs/libwebp:=
 	media-libs/libzmf
 	media-libs/openjpeg:=
-	media-libs/zxing-cpp
-	>=net-libs/neon-0.31.1:=
+	media-libs/tiff:=
+	media-libs/zxing-cpp:=
 	net-misc/curl
-	sci-mathematics/lpsolve
+	sci-mathematics/lpsolve:=
 	sys-libs/zlib
 	virtual/opengl
 	x11-libs/cairo
@@ -217,7 +217,7 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	libreoffice_extensions_scripting-javascript? ( >=dev-java/rhino-1.7.14:1.6 )
 	mariadb? ( dev-db/mariadb-connector-c:= )
 	!mariadb? ( dev-db/mysql-connector-c:= )
-	pdfimport? ( >=app-text/poppler-22.07.0[cxx] )
+	pdfimport? ( >=app-text/poppler-22.06:=[cxx] )
 	postgres? ( >=dev-db/postgresql-9.0:*[kerberos] )
 "
 # FIXME: cppunit should be moved to test conditional
@@ -231,7 +231,6 @@ DEPEND="${COMMON_DEPEND}
 	>=dev-util/gperf-3.1
 	dev-util/mdds:1/2.0
 	media-libs/glm
-	sys-devel/ucpp
 	x11-base/xorg-proto
 	x11-libs/libXt
 	x11-libs/libXtst
@@ -258,22 +257,22 @@ RDEPEND="${COMMON_DEPEND}
 "
 BDEPEND="
 	dev-util/intltool
+	sys-apps/which
 	sys-devel/bison
 	sys-devel/flex
 	sys-devel/gettext
 	virtual/pkgconfig
 	clang? (
 		|| (
-			(
-				sys-devel/clang:14
+			(	sys-devel/clang:16
+				sys-devel/llvm:16
+				=sys-devel/lld-16*	)
+			(	sys-devel/clang:15
+				sys-devel/llvm:15
+				=sys-devel/lld-15*	)
+			(	sys-devel/clang:14
 				sys-devel/llvm:14
 				=sys-devel/lld-14*	)
-			(	sys-devel/clang:13
-				sys-devel/llvm:13
-				=sys-devel/lld-13*	)
-			(	sys-devel/clang:12
-				sys-devel/llvm:12
-				=sys-devel/lld-12*	)
 		)
 	)
 	odk? ( >=app-doc/doxygen-1.8.4 )
@@ -283,7 +282,7 @@ if [[ ${MY_PV} != *9999* ]] && [[ ${PV} != *_* ]]; then
 else
 	# Translations are not reliable on live ebuilds
 	# rather force people to use english only.
-	PDEPEND="!app-office/libreoffice-l10n"
+	RDEPEND+=" !app-office/libreoffice-l10n"
 fi
 
 PATCHES=(
@@ -294,9 +293,12 @@ PATCHES=(
 	"${FILESDIR}/${PN}-6.1-nomancompress.patch"
 	"${FILESDIR}/${PN}-7.2.0.4-qt5detect.patch"
 
+	# git master
+	"${WORKDIR}"/${PN}-7.5.2.2-loong-buildsys-fix.patch
+
 	# x32 ABI
 	"${FILESDIR}/${PN}-x32-configure.patch"
-	"${FILESDIR}/${PN}-7.3-x32-cpp_uno_bridge.patch"
+	"${FILESDIR}/${PN}-7.3-x32-cpp_uno_bridge.patch"	
 )
 
 S="${WORKDIR}/${PN}-${MY_PV}"
@@ -406,6 +408,9 @@ src_configure() {
 		NM=llvm-nm
 		RANLIB=llvm-ranlib
 		LDFLAGS+=" -fuse-ld=lld"
+
+		# Not implemented by Clang, bug #903889
+		filter-flags -Wlto-type-mismatch -Werror=lto-type-mismatch
 	else
 		# Force gcc
 		einfo "Enforcing the use of gcc due to USE=-clang ..."
@@ -500,7 +505,6 @@ src_configure() {
 		--with-parallelism=$(makeopts_jobs)
 		--with-system-abseil
 		--with-system-openjpeg
-		--with-system-ucpp
 		--with-tls=nss
 		--with-vendor="Gentoo Foundation"
 		--without-fonts
@@ -508,10 +512,8 @@ src_configure() {
 		--with-help="html"
 		--without-helppack-integration
 		--with-system-gpgmepp
-		--without-system-cuckoo
 		--without-system-dragonbox
 		--without-system-jfreereport
-		#--without-system-libcmis
 		--without-system-libfixmath
 		--without-system-sane
 		$(use_enable base report-builder)
@@ -587,12 +589,11 @@ src_compile() {
 }
 
 src_test() {
-	make unitcheck || die
-	make slowcheck || die
+	emake unitcheck
+	emake slowcheck
 }
 
 src_install() {
-	# This is not Makefile so no buildserver
 	emake DESTDIR="${D}" distro-pack-install -o build -o check
 
 	# bug 593514
