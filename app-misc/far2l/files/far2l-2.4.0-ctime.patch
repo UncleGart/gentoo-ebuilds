@@ -1,0 +1,35 @@
+diff --git a/NetRocks/src/Protocol/FTP/FTPParseMLST.cpp b/NetRocks/src/Protocol/FTP/FTPParseMLST.cpp
+index e67c798..2fcb81e 100644
+--- a/NetRocks/src/Protocol/FTP/FTPParseMLST.cpp
++++ b/NetRocks/src/Protocol/FTP/FTPParseMLST.cpp
+@@ -1,5 +1,6 @@
+ #include <string.h>
+ #include <stdlib.h>
++#include <ctime>
+ 
+ #include "FTPParseMLST.h"
+ #include "../../Erroring.h"
+diff --git a/far2l/src/base/SafeMMap.cpp b/far2l/src/base/SafeMMap.cpp
+index 8d132a2..fa518b9 100644
+--- a/far2l/src/base/SafeMMap.cpp
++++ b/far2l/src/base/SafeMMap.cpp
+@@ -17,6 +17,7 @@
+ #include <functional>
+ #include <set>
+ #include <atomic>
++#include <ctime>
+ 
+ #include <utils.h>
+ #include <ScopeHelpers.h>
+diff --git a/far2l/src/vt/vtcompletor.cpp b/far2l/src/vt/vtcompletor.cpp
+index 2588ed3..16fd249 100644
+--- a/far2l/src/vt/vtcompletor.cpp
++++ b/far2l/src/vt/vtcompletor.cpp
+@@ -11,6 +11,7 @@
+ #include <stdlib.h>
+ #include <string.h>
+ #include <string>
++#include <ctime>
+ #include <utils.h>
+ #include "vtcompletor.h"
+ 

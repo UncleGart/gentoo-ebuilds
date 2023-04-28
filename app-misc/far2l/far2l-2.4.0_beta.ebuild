@@ -1,9 +1,9 @@
-# Copyright 1999-2021 Gentoo Authors
+# Copyright 1999-2022 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=7
 
-PYTHON_COMPAT=( python3_{8..10} )
+PYTHON_COMPAT=( python3_{9..10} )
 
 WX_GTK_VER="3.0-gtk3"
 
@@ -18,17 +18,18 @@ if [[ "${PV}" == "9999" ]] ; then
 	EGIT_REPO_URI="https://github.com/elfmz/far2l"
 	EGIT_BRANCH="master"
 else
-	MY_PV="${PV:4:4}-${PV:8:2}-${PV:10:8}"
+	MY_PV="v_${PV/_beta/}"
 	MY_P="${PN}-${MY_PV}"
 	S="${WORKDIR}/${MY_P}"
-	SRC_URI="https://github.com/elfmz/far2l/archive/v${MY_PV}.tar.gz -> ${P}.tar.gz"
-	KEYWORDS="~amd64 ~x86"
+	SRC_URI="https://github.com/elfmz/far2l/archive/${MY_PV}.tar.gz"
+	KEYWORDS="~amd64"
 fi
 
 LICENSE="GPL-2"
 SLOT="0"
 IUSE="+ssl sftp samba nfs webdav +archive +wxwidgets python"
 REQUIRED_USE="python? ( ${PYTHON_REQUIRED_USE} )"
+RESTRICT="mirror"
 
 BDEPEND="sys-devel/m4"
 
@@ -48,7 +49,6 @@ RDEPEND="dev-libs/xerces-c
 		${PYTHON_DEPS}
 		virtual/python-cffi
 		dev-python/debugpy
-		$(python_gen_any_dep 'dev-python/virtualenv[${PYTHON_USEDEP}]')
 	)"
 
 DEPEND="${RDEPEND}"
@@ -56,7 +56,8 @@ DEPEND="${RDEPEND}"
 DOCS=( README.md )
 
 PATCHES=(
-	"${FILESDIR}/${PN}_uintptr.patch"
+	"${FILESDIR}/${PN}-2.4.0-uintptr.patch"
+	"${FILESDIR}/${PN}-2.4.0-ctime.patch"
 )
 
 pkg_setup() {
@@ -68,9 +69,11 @@ pkg_setup() {
 src_prepare() {
 	sed -e "s:execute_process(COMMAND ln -sf \../../bin/far2l \${CMAKE_INSTALL_PREFIX}/lib/far2l/far2l_askpass)::" -i "${S}"/CMakeLists.txt || die
 	sed -e "s:execute_process(COMMAND ln -sf \../../bin/far2l \${CMAKE_INSTALL_PREFIX}/lib/far2l/far2l_sudoapp)::" -i "${S}"/CMakeLists.txt || die
-	sed -e "s:execute_process(COMMAND rm -f \${CMAKE_INSTALL_PREFIX}/lib/far2l/Plugins/objinfo/plug/objinfo.far-plug-mb)::" -i "${S}"/CMakeLists.txt || die
-	sed -e "s:execute_process(COMMAND rm -f \${CMAKE_INSTALL_PREFIX}/lib/far2l/Plugins/farftp/plug/farftp.far-plug-mb && echo Removed existing farftp plugin)::" -i "${S}"/CMakeLists.txt || die
-	sed -e "s:execute_process(COMMAND rm -f \${CMAKE_INSTALL_PREFIX}/lib/far2l/Plugins/python/plug/python.far-plug-wide && echo Removed existing python plugin)::" -i "${S}"/CMakeLists.txt || die
+	sed -e "s:execute_process(COMMAND rm -f \${CMAKE_INSTALL_PREFIX}/lib/far2l/Plugins/.*::" -i "${S}"/CMakeLists.txt || die
+	sed -e "s:execute_process(COMMAND echo Python\: prepaing virtual environment)::" -i "${S}"/CMakeLists.txt || die
+	sed -e "s:execute_process(COMMAND \${PYTHON3} -m venv --system-site-packages \${CMAKE_INSTALL_PREFIX}/lib/far2l/Plugins/python/plug/python)::" -i "${S}"/CMakeLists.txt || die
+	sed -e "s:execute_process(COMMAND echo Python\: installing packages)::" -i "${S}"/CMakeLists.txt || die
+	sed -e "s:execute_process(COMMAND \${CMAKE_INSTALL_PREFIX}/lib/far2l/Plugins/python/plug/python/bin/python -m pip install cffi debugpy)::" -i "${S}"/CMakeLists.txt || die
 	cmake_src_prepare
 }
 
