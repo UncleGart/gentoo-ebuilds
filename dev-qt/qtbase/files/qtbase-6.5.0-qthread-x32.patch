@@ -1,0 +1,18 @@
+diff --git a/src/corelib/thread/qthread.h b/src/corelib/thread/qthread.h
+index e9af85e..c5db5e2 100644
+--- a/src/corelib/thread/qthread.h
++++ b/src/corelib/thread/qthread.h
+@@ -160,9 +160,12 @@ inline Qt::HANDLE QThread::currentThreadId() noexcept
+ #elif defined(Q_PROCESSOR_X86_64) && defined(Q_OS_DARWIN64)
+     // 64bit macOS uses GS, see https://github.com/apple/darwin-xnu/blob/master/libsyscall/os/tsd.h
+     __asm__("movq %%gs:0, %0" : "=r" (tid) : : );
+-#elif defined(Q_PROCESSOR_X86_64) && ((defined(Q_OS_LINUX) && defined(__GLIBC__)) || defined(Q_OS_FREEBSD))
++#elif defined(Q_PROCESSOR_X86_64) && ((defined(Q_OS_LINUX) && defined(__GLIBC__)) && defined(__LP64__) || defined(Q_OS_FREEBSD))
+     // x86_64 Linux, BSD uses FS
+     __asm__("movq %%fs:%c1, %0" : "=r" (tid) : "i" (2 * sizeof(void*)) : );
++#elif defined(Q_PROCESSOR_X86_64) && defined(Q_OS_LINUX) && defined(__GLIBC__) && defined(__ILP32__)
++    // x32 ABI on Linux uses FS
++    __asm__("movl %%fs:%c1, %0" : "=r" (tid) : "i" (2 * sizeof(void*)) : );
+ #elif defined(Q_PROCESSOR_X86_64) && defined(Q_OS_WIN)
+     // See https://en.wikipedia.org/wiki/Win32_Thread_Information_Block
+     // First get the pointer to the TIB
