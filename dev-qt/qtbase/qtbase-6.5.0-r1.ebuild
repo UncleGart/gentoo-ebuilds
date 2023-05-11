@@ -12,8 +12,9 @@ if [[ ${QT6_BUILD_TYPE} == release ]]; then
 fi
 
 # Qt Modules
-IUSE="+concurrent +dbus +gui +network +sql +widgets +xml zstd"
+IUSE="+concurrent +dbus +gui +network +sql opengl +widgets +xml zstd"
 REQUIRED_USE="
+	opengl? ( gui )
 	widgets? ( gui )
 	X? ( || ( evdev libinput ) )
 "
@@ -145,7 +146,8 @@ src_configure() {
 		$(qt_feature evdev mtdev)
 		-DQT_FEATURE_gif=ON
 		$(qt_feature jpeg)
-		-DQT_FEATURE_opengl=ON
+		$(qt_feature opengl)
+		$(qt_feature gles2-only opengles2)
 		$(qt_feature libinput)
 		$(qt_feature tslib)
 		$(qt_feature tuio tuiotouch)
