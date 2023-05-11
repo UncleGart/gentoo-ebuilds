@@ -20,6 +20,7 @@
 		<flag name="clang">Build clang-based plugins for C/C++ development (code model, formatting, static analysis)</flag>
 		<flag name="clearcase">Add support for IBM ClearCase version control system (requires manual installation of ClearCase client)</flag>
 		<flag name="cmake">Build plugin for CMake-based projects</flag>
+		<flag name="coco">Build plugin to support Coco code coverage tool</flag>
 		<flag name="conan">Build plugin to integrate with the Conan package manager</flag>
 		<flag name="cppcheck">Enable integration with <pkg>dev-util/cppcheck</pkg></flag>
 		<flag name="ctfvisualizer">Build the Chrome Trace Format visualizer plugin</flag>
@@ -27,6 +28,7 @@
 		<flag name="docker">Build plugin for Docker support</flag>
 		<flag name="glsl">Build the GLSL editor plugin</flag>
 		<flag name="help">Enable the integrated documentation viewer</flag>
+		<flag name="imageviewer">Build plugin to open and view image files</flag>
 		<flag name="incredibuild">Enable integration with Incredibuild</flag>
 		<flag name="lsp">Add support for the Language Server Protocol (LSP)</flag>
 		<flag name="mcu">Build plugin for MCU devices</flag>
@@ -40,8 +42,6 @@
 		<flag name="qbs">Build plugin for Qbs-based projects</flag>
 		<flag name="qmake">Build plugin for qmake-based projects</flag>
 		<flag name="qml">Build plugins for QML-based development (designer, editor, project manager)</flag>
-		<flag name="qmldesigner">Enable designer for QML/QtQuick-based UIs</flag>
-		<flag name="qmljs">Build the QML/JavaScript editor plugin</flag>
 		<flag name="qmlprofiler">Build the QML profiler plugin</flag>
 		<flag name="qnx">Build plugin for QNX devices</flag>
 		<flag name="remotelinux">Build plugin for deployment and execution on a remote Linux host</flag>
