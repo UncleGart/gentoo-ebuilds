@@ -22,5 +22,5 @@ RDEPEND="
 BDEPEND="virtual/pkgconfig"
 
 src_install() {
-	emake PREFIX="${D}" install
+	dobin tldr
 }
