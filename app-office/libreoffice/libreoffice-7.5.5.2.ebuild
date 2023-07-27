@@ -5,7 +5,7 @@
 
 EAPI=8
 
-PYTHON_COMPAT=( python3_{9..11} )
+PYTHON_COMPAT=( python3_{10..12} )
 PYTHON_REQ_USE="threads(+),xml(+)"
 
 MY_PV="${PV/_alpha/.alpha}"
@@ -86,7 +86,7 @@ unset ADDONS_SRC
 LO_EXTS="nlpsolver scripting-beanshell scripting-javascript wiki-publisher"
 
 IUSE="accessibility base bluetooth +branding clang coinmp +cups custom-cflags +dbus debug eds firebird
-googledrive gstreamer +gtk kde ldap +mariadb odk pdfimport postgres test vulkan
+googledrive gstreamer +gtk kde ldap +mariadb odk pdfimport postgres test valgrind vulkan
 $(printf 'libreoffice_extensions_%s ' ${LO_EXTS})"
 
 REQUIRED_USE="${PYTHON_REQUIRED_USE}
@@ -154,7 +154,7 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	>=media-libs/harfbuzz-5.1.0:=[graphite,icu]
 	media-libs/lcms:2
 	>=media-libs/libcdr-0.1.0
-	>=media-libs/libepoxy-1.3.1
+	>=media-libs/libepoxy-1.3.1[X]
 	>=media-libs/libfreehand-0.1.0
 	media-libs/libjpeg-turbo:=
 	media-libs/libpagemaker
@@ -169,7 +169,7 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	sci-mathematics/lpsolve:=
 	sys-libs/zlib
 	virtual/opengl
-	x11-libs/cairo
+	x11-libs/cairo[X]
 	x11-libs/libXinerama
 	x11-libs/libXrandr
 	x11-libs/libXrender
@@ -194,11 +194,12 @@ COMMON_DEPEND="${PYTHON_DEPS}
 		media-libs/gst-plugins-base:1.0
 	)
 	gtk? (
+		app-accessibility/at-spi2-core:2
 		dev-libs/glib:2
 		dev-libs/gobject-introspection
 		gnome-base/dconf
-		media-libs/mesa[egl]
-		x11-libs/gtk+:3
+		media-libs/mesa[egl(+)]
+		x11-libs/gtk+:3[X]
 		x11-libs/pango
 	)
 	kde? (
@@ -244,6 +245,7 @@ DEPEND="${COMMON_DEPEND}
 		media-fonts/dejavu
 		media-fonts/liberation-fonts
 	)
+	valgrind? ( dev-util/valgrind )
 "
 RDEPEND="${COMMON_DEPEND}
 	acct-group/libreoffice
@@ -294,7 +296,7 @@ PATCHES=(
 	"${FILESDIR}/${PN}-7.2.0.4-qt5detect.patch"
 
 	# git master
-	"${WORKDIR}"/${PN}-7.5.2.2-loong-buildsys-fix.patch
+	"${WORKDIR}/${PN}-7.5.2.2-loong-buildsys-fix.patch"
 
 	# x32 ABI
 	"${FILESDIR}/${PN}-x32-configure.patch"
@@ -442,10 +444,6 @@ src_configure() {
 	# Ensure we use correct toolchain
 	tc-export CC CXX LD AR NM OBJDUMP RANLIB PKG_CONFIG
 
-	if use vulkan && ! use clang ; then
-		ewarn "Building skia with gcc may lead to performance issues. Disable vulkan or enable clang."
-	fi
-
 	# optimization flags
 	export GMAKE_OPTIONS="${MAKEOPTS}"
 	# System python enablement:
@@ -479,7 +477,6 @@ src_configure() {
 		--with-system-libs
 		--enable-build-opensymbol
 		--enable-cairo-canvas
-		--enable-gui
 		--enable-largefile
 		--enable-mergelibs
 		--enable-python=system
@@ -487,7 +484,7 @@ src_configure() {
 		--enable-release-build
 		--disable-breakpad
 		--disable-bundle-mariadb
-		--disable-libcmis
+		--disable-ccache
 		--disable-epm
 		--disable-fetch-external
 		--disable-gtk3-kde5
@@ -507,6 +504,7 @@ src_configure() {
 		--with-system-openjpeg
 		--with-tls=nss
 		--with-vendor="Gentoo Foundation"
+		--with-x
 		--without-fonts
 		--without-myspell-dicts
 		--with-help="html"
@@ -539,6 +537,7 @@ src_configure() {
 		$(use_with googledrive gdrive-client-secret ${google_default_client_secret})
 		$(use_with java)
 		$(use_with odk doxygen)
+		$(use_with valgrind)
 	)
 
 	if use eds || use gtk; then
