@@ -4,7 +4,7 @@
 
 EAPI=7
 
-inherit autotools eutils pam systemd
+inherit autotools pam systemd
 
 DESCRIPTION="An open source Remote Desktop Protocol server"
 HOMEPAGE="http://www.xrdp.org/"

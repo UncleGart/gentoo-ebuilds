@@ -2,9 +2,9 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Id$
 
-EAPI=7
+EAPI=6
 
-inherit autotools eutils systemd
+inherit eutils autotools systemd
 
 DESCRIPTION="Xorg drivers for xrdp"
 HOMEPAGE="http://www.xrdp.org/"
@@ -19,7 +19,8 @@ IUSE="glamor"
 RDEPEND="
 	>=net-misc/xrdp-0.9.14
 	x11-libs/libX11:0=
-	glamor? ( >=x11-base/xorg-server-1.19.0 x11-libs/libdrm )"
+    >=x11-base/xorg-server-1.19.0
+	glamor? ( x11-libs/libdrm )"
 DEPEND="${RDEPEND}
 	dev-lang/nasm:0="
 
