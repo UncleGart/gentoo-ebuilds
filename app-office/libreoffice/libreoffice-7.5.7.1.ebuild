@@ -86,11 +86,11 @@ unset ADDONS_SRC
 LO_EXTS="nlpsolver scripting-beanshell scripting-javascript wiki-publisher"
 
 IUSE="accessibility base bluetooth +branding clang coinmp +cups custom-cflags +dbus debug eds firebird
-googledrive gstreamer +gtk kde ldap +mariadb odk pdfimport postgres test valgrind vulkan
+googledrive gstreamer +gtk kde ldap +mariadb odk pdfimport postgres test system-abseil valgrind vulkan
 $(printf 'libreoffice_extensions_%s ' ${LO_EXTS})"
 
 REQUIRED_USE="${PYTHON_REQUIRED_USE}
-	base? ( firebird java )
+	base? ( java )
 	bluetooth? ( dbus )
 	libreoffice_extensions_nlpsolver? ( java )
 	libreoffice_extensions_scripting-beanshell? ( java )
@@ -127,7 +127,6 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	app-text/libwpg:0.3
 	>=app-text/libwps-0.4
 	app-text/mythes
-	dev-cpp/abseil-cpp:=
 	>=dev-cpp/clucene-2.3.3.4-r2
 	>=dev-cpp/libcmis-0.5.2-r2
 	dev-db/unixODBC
@@ -220,6 +219,7 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	!mariadb? ( dev-db/mysql-connector-c:= )
 	pdfimport? ( >=app-text/poppler-22.06:=[cxx] )
 	postgres? ( >=dev-db/postgresql-9.0:*[kerberos] )
+	system-abseil? ( dev-cpp/abseil-cpp:= )
 "
 # FIXME: cppunit should be moved to test conditional
 #        after everything upstream is under gbuild
@@ -296,7 +296,7 @@ PATCHES=(
 	"${FILESDIR}/${PN}-7.2.0.4-qt5detect.patch"
 
 	# git master
-	"${WORKDIR}"/${PN}-7.5.2.2-loong-buildsys-fix.patch
+	"${WORKDIR}/${PN}-7.5.2.2-loong-buildsys-fix.patch"
 
 	# x32 ABI
 	"${FILESDIR}/${PN}-x32-configure.patch"
@@ -411,6 +411,9 @@ src_configure() {
 		RANLIB=llvm-ranlib
 		LDFLAGS+=" -fuse-ld=lld"
 
+		# Workaround for bug #915067
+		append-ldflags -Wl,--undefined-version
+
 		# Not implemented by Clang, bug #903889
 		filter-flags -Wlto-type-mismatch -Werror=lto-type-mismatch
 	else
@@ -500,7 +503,6 @@ src_configure() {
 		--with-external-tar="${DISTDIR}"
 		--with-lang=""
 		--with-parallelism=$(makeopts_jobs)
-		--with-system-abseil
 		--with-system-openjpeg
 		--with-tls=nss
 		--with-vendor="Gentoo Foundation"
@@ -537,6 +539,7 @@ src_configure() {
 		$(use_with googledrive gdrive-client-secret ${google_default_client_secret})
 		$(use_with java)
 		$(use_with odk doxygen)
+		$(use_with system-abseil)
 		$(use_with valgrind)
 	)
 

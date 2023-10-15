@@ -18,6 +18,7 @@ version</longdescription>
     <flag name="mariadb">Prefer mariadb connector over mysql connector</flag>
     <flag name="odk">Build the Office Development Kit</flag>
     <flag name="pdfimport">Enable PDF import via the Poppler library</flag>
+    <flag name="system-abseil">Use system Abseil library</flag>
     <flag name="vulkan">Enable Vulkan usage via the skia library (clang recommended)</flag>
   </use>
 </pkgmetadata>
