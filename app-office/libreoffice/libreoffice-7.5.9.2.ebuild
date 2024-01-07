@@ -1,4 +1,4 @@
-# Copyright 1999-2023 Gentoo Authors
+# Copyright 1999-2024 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 # This ebuild is taken from pg_overlay with the addition of x32 ABI patches
@@ -86,11 +86,11 @@ unset ADDONS_SRC
 LO_EXTS="nlpsolver scripting-beanshell scripting-javascript wiki-publisher"
 
 IUSE="accessibility base bluetooth +branding clang coinmp +cups custom-cflags +dbus debug eds firebird
-googledrive gstreamer +gtk kde ldap +mariadb odk pdfimport postgres test valgrind vulkan
+googledrive gstreamer +gtk kde ldap +mariadb odk pdfimport postgres test system-abseil valgrind vulkan
 $(printf 'libreoffice_extensions_%s ' ${LO_EXTS})"
 
 REQUIRED_USE="${PYTHON_REQUIRED_USE}
-	base? ( firebird java )
+	base? ( java )
 	bluetooth? ( dbus )
 	libreoffice_extensions_nlpsolver? ( java )
 	libreoffice_extensions_scripting-beanshell? ( java )
@@ -104,7 +104,7 @@ LICENSE="|| ( LGPL-3 MPL-1.1 )"
 SLOT="0"
 
 [[ ${MY_PV} == *9999* ]] || \
-KEYWORDS="~amd64 ~arm ~arm64 ~loong ~ppc64 ~riscv ~x86 ~amd64-linux"
+KEYWORDS="amd64 ~arm arm64 ~loong ~ppc64 ~riscv x86 ~amd64-linux"
 
 COMMON_DEPEND="${PYTHON_DEPS}
 	app-arch/unzip
@@ -127,9 +127,8 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	app-text/libwpg:0.3
 	>=app-text/libwps-0.4
 	app-text/mythes
-	dev-cpp/abseil-cpp:=
 	>=dev-cpp/clucene-2.3.3.4-r2
-	>=dev-cpp/libcmis-0.5.2-r2
+	>=dev-cpp/libcmis-0.6.2:0=
 	dev-db/unixODBC
 	dev-lang/perl
 	dev-libs/boost:=[nls]
@@ -220,6 +219,7 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	!mariadb? ( dev-db/mysql-connector-c:= )
 	pdfimport? ( >=app-text/poppler-22.06:=[cxx] )
 	postgres? ( >=dev-db/postgresql-9.0:*[kerberos] )
+	system-abseil? ( dev-cpp/abseil-cpp:= )
 "
 # FIXME: cppunit should be moved to test conditional
 #        after everything upstream is under gbuild
@@ -266,6 +266,9 @@ BDEPEND="
 	virtual/pkgconfig
 	clang? (
 		|| (
+			(	sys-devel/clang:17
+				sys-devel/llvm:17
+				=sys-devel/lld-17*	)
 			(	sys-devel/clang:16
 				sys-devel/llvm:16
 				=sys-devel/lld-16*	)
@@ -295,8 +298,15 @@ PATCHES=(
 	"${FILESDIR}/${PN}-6.1-nomancompress.patch"
 	"${FILESDIR}/${PN}-7.2.0.4-qt5detect.patch"
 
+	# maybe upstreamable
+	"${FILESDIR}/libreoffice-7.5.8.2-icu-74-compatibility.patch"
+
+	# 7.6 branch
+	"${WORKDIR}/${PN}-7.5.2.2-loong-buildsys-fix.patch" # bug 881389
+
 	# git master
-	"${WORKDIR}/${PN}-7.5.2.2-loong-buildsys-fix.patch"
+	"${FILESDIR}/${PN}-7.5.6.2-gcc-14.patch" # bug 916621
+	"${FILESDIR}/${P}-libxml2-2.12.patch" # bug 917691
 
 	# x32 ABI
 	"${FILESDIR}/${PN}-x32-configure.patch"
@@ -401,6 +411,9 @@ src_configure() {
 	einfo "Preset CFLAGS:    ${CFLAGS}"
 	einfo "Preset LDFLAGS:   ${LDFLAGS}"
 
+	# Workaround for bug #915067
+	append-ldflags $(test-flags-CCLD -Wl,--undefined-version)
+
 	if use clang ; then
 		# Force clang
 		einfo "Enforcing the use of clang due to USE=clang ..."
@@ -410,6 +423,9 @@ src_configure() {
 		NM=llvm-nm
 		RANLIB=llvm-ranlib
 		LDFLAGS+=" -fuse-ld=lld"
+
+		# Workaround for bug #907905
+		filter-lto
 
 		# Not implemented by Clang, bug #903889
 		filter-flags -Wlto-type-mismatch -Werror=lto-type-mismatch
@@ -500,7 +516,6 @@ src_configure() {
 		--with-external-tar="${DISTDIR}"
 		--with-lang=""
 		--with-parallelism=$(makeopts_jobs)
-		--with-system-abseil
 		--with-system-openjpeg
 		--with-tls=nss
 		--with-vendor="Gentoo Foundation"
@@ -537,6 +552,7 @@ src_configure() {
 		$(use_with googledrive gdrive-client-secret ${google_default_client_secret})
 		$(use_with java)
 		$(use_with odk doxygen)
+		$(use_with system-abseil)
 		$(use_with valgrind)
 	)
 
