@@ -1,4 +1,4 @@
-# Copyright 1999-2023 Gentoo Authors
+# Copyright 1999-2024 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 # Based on the official Gentoo Rust ebuild + patches from pg_overlay
@@ -22,7 +22,7 @@ else
 	SLOT="stable/${ABI_VER}"
 	MY_P="rustc-${PV}"
 	SRC="${MY_P}-src.tar.xz"
-	KEYWORDS="~amd64 ~arm ~arm64 ~mips ~ppc ~ppc64 ~riscv ~sparc ~x86"
+	KEYWORDS="~amd64 ~arm arm64 ~loong ~mips ppc ~ppc64 ~riscv ~sparc ~x86"
 fi
 
 RUST_STAGE0_VERSION="1.$(($(ver_cut 2) - 1)).0"
@@ -37,14 +37,15 @@ SRC_URI="
 "
 
 # keep in sync with llvm ebuild of the same version as bundled one.
-ALL_LLVM_TARGETS=( AArch64 AMDGPU ARM AVR BPF Hexagon Lanai LoongArch Mips MSP430
-	NVPTX PowerPC RISCV Sparc SystemZ VE WebAssembly X86 XCore )
+ALL_LLVM_TARGETS=( AArch64 AMDGPU ARC ARM AVR BPF CSKY DirectX Hexagon Lanai
+	LoongArch M68k Mips MSP430 NVPTX PowerPC RISCV Sparc SPIRV SystemZ VE
+	WebAssembly X86 XCore Xtensa )
 ALL_LLVM_TARGETS=( "${ALL_LLVM_TARGETS[@]/#/llvm_targets_}" )
 LLVM_TARGET_USEDEPS=${ALL_LLVM_TARGETS[@]/%/(-)?}
 
-LICENSE="|| ( MIT Apache-2.0 ) BSD BSD-1 BSD-2 BSD-4 UoI-NCSA"
+LICENSE="|| ( MIT Apache-2.0 ) BSD BSD-1 BSD-2 BSD-4"
 
-IUSE="clippy cpu_flags_x86_sse2 debug dist doc llvm-libunwind +lto miri nightly parallel-compiler profiler rustfmt rust-analyzer rust-src system-bootstrap system-llvm test wasm ${ALL_LLVM_TARGETS[*]}"
+IUSE="big-endian clippy cpu_flags_x86_sse2 debug dist doc llvm-libunwind +lto miri nightly parallel-compiler profiler rustfmt rust-analyzer rust-src system-bootstrap system-llvm test wasm ${ALL_LLVM_TARGETS[*]}"
 
 # Please keep the LLVM dependency block separate. Since LLVM is slotted,
 # we need to *really* make sure we're not pulling more than one slot
@@ -52,7 +53,7 @@ IUSE="clippy cpu_flags_x86_sse2 debug dist doc llvm-libunwind +lto miri nightly 
 
 # How to use it:
 # List all the working slots in LLVM_VALID_SLOTS, newest first.
-LLVM_VALID_SLOTS=( 16 )
+LLVM_VALID_SLOTS=( 17 )
 LLVM_MAX_SLOT="${LLVM_VALID_SLOTS[0]}"
 
 # splitting usedeps needed to avoid CI/pkgcheck's UncheckableDep limitation
@@ -70,7 +71,7 @@ done
 unset _s _x
 LLVM_DEPEND+=" )
 	<sys-devel/llvm-$(( LLVM_MAX_SLOT + 1 )):=
-	sys-devel/lld
+	>=sys-devel/lld-17.0.6
 "
 
 # to bootstrap we need at least exactly previous version, or same.
@@ -126,7 +127,6 @@ RDEPEND="${DEPEND}
 "
 
 REQUIRED_USE="|| ( ${ALL_LLVM_TARGETS[*]} )
-	system-llvm? ( !profiler )
 	miri? ( nightly )
 	parallel-compiler? ( nightly )
 	rust-analyzer? ( rust-src )
@@ -166,17 +166,19 @@ QA_EXECSTACK="usr/lib/${PN}/${PV}/lib/rustlib/*/lib*.rlib:lib.rmeta"
 # causes double bootstrap
 RESTRICT="test"
 
-VERIFY_SIG_OPENPGP_KEY_PATH=${BROOT}/usr/share/openpgp-keys/rust.asc
+VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/rust.asc
 
 PATCHES=(
-	"${FILESDIR}"/1.70.0-ignore-broken-and-non-applicable-tests.patch
-	"${FILESDIR}"/1.62.1-musl-dynamic-linking.patch
 	"${FILESDIR}"/1.67.0-doc-wasm.patch
-	"${FILESDIR}"/0002-compiler-Change-LLVM-targets-1.61-x32.patch
+	"${FILESDIR}"/1.70.0-ignore-broken-and-non-applicable-tests.patch
 )
 PKG_CONFIG_ALLOW_CROSS=1
 
 S="${WORKDIR}/${MY_P}-src"
+
+clear_vendor_checksums() {
+	sed -i 's/\("files":{\)[^}]*/\1/' "vendor/${1}/.cargo-checksum.json" || die
+}
 
 toml_usex() {
 	usex "${1}" true false
@@ -267,6 +269,9 @@ pkg_setup() {
 		llvm_pkg_setup
 
 		local llvm_config="$(get_llvm_prefix "${LLVM_MAX_SLOT}")/bin/llvm-config"
+		if use abi_x86_x32; then
+			llvm_config="$(get_llvm_prefix "${LLVM_MAX_SLOT}")/bin/x86_64-pc-linux-gnu-llvm-config"
+		fi
 		export LLVM_LINK_SHARED=1
 		export RUSTFLAGS="${RUSTFLAGS} -Lnative=$("${llvm_config}" --libdir)"
 	fi
@@ -292,6 +297,14 @@ esetup_unwind_hack() {
 }
 
 src_prepare() {
+	# Clear vendor checksums for crates that we patched to bump libc.
+	# NOTE: refresh this on each bump.
+	#for i in addr2line-0.20.0 bstr cranelift-jit crossbeam-channel elasticlunr-rs handlebars icu_locid libffi \
+	#	terminal_size tracing-tree; do
+	#	clear_vendor_checksums "${i}"
+	#done
+	# export RUSTFLAGS+=" -Ctarget-feature=+sse,-soft-float "
+
 	if ! use system-bootstrap; then
 		has_version sys-devel/gcc || esetup_unwind_hack
 		local rust_stage0_root="${WORKDIR}"/rust-stage0
@@ -299,7 +312,7 @@ src_prepare() {
 		if use abi_x86_x32; then
 			# TODO: gnu vs musl
 			einfo "Preparing for x32 ABI"
-			rust_stage0="rust-${RUST_STAGE0_VERSION}-x86_64-pc-linux-gnu"
+			rust_stage0="rust-${RUST_STAGE0_VERSION}-x86_64-unknown-linux-gnu"
 			export PKG_CONFIG_PATH=/usr/libx32/pkgconfig
 			export OPENSSL_INCLUDE_DIR=/usr/libx32/
 			export OPENSSL_LIB_DIR=/usr/libx32/
@@ -352,7 +365,7 @@ src_prepare() {
 }
 
 src_configure() {
-	filter-flags '-flto*' # https://bugs.gentoo.org/862109 https://bugs.gentoo.org/866231
+	filter-lto # https://bugs.gentoo.org/862109 https://bugs.gentoo.org/866231
 
 	local rust_target="" rust_targets="" arch_cflags
 
@@ -391,12 +404,18 @@ src_configure() {
 	[[ -d ${rust_stage0_root} ]] || die "${rust_stage0_root} is not a directory"
 
 	rust_target="$(rust_abi)"
+	rust_build="${rust_target}"
+	if use abi_x86_x32 && ! use system-bootstrap; then
+		rust_build="x86_64-unknown-linux-gnu"
+		rust_target="x86_64-unknown-linux-gnux32"
+	fi
 
 	local lto_mode="$(usex lto fat thin)"
 
 	local cm_btype="$(usex debug DEBUG RELEASE)"
 	cat <<- _EOF_ > "${S}"/config.toml
 		changelog-seen = 2
+		
 		[llvm]
 		download-ci-llvm = false
 		optimize = $(toml_usex !debug)
@@ -424,6 +443,8 @@ src_configure() {
 			*)
 				;;
 		esac)
+		enable-warnings = false
+		
 		[llvm.build-config]
 		CMAKE_VERBOSE_MAKEFILE = "ON"
 		CMAKE_C_FLAGS_${cm_btype} = "${CFLAGS}"
@@ -432,10 +453,11 @@ src_configure() {
 		CMAKE_MODULE_LINKER_FLAGS_${cm_btype} = "${LDFLAGS}"
 		CMAKE_SHARED_LINKER_FLAGS_${cm_btype} = "${LDFLAGS}"
 		CMAKE_STATIC_LINKER_FLAGS_${cm_btype} = "${ARFLAGS}"
+		
 		[build]
 		build-stage = 2
 		test-stage = 2
-		build = "${rust_target}"
+		build = "${rust_build}"
 		host = ["${rust_target}"]
 		target = [${rust_targets}]
 		cargo = "${rust_stage0_root}/bin/cargo"
@@ -453,6 +475,7 @@ src_configure() {
 		sanitizers = false
 		profiler = $(toml_usex profiler)
 		cargo-native-static = false
+		
 		[install]
 		prefix = "${EPREFIX}/usr/lib/${PN}/${PV}"
 		sysconfdir = "etc"
@@ -460,6 +483,7 @@ src_configure() {
 		bindir = "bin"
 		libdir = "lib"
 		mandir = "share/man"
+		
 		[rust]
 		# https://github.com/rust-lang/rust/issues/54872
 		codegen-units-std = 1
@@ -492,6 +516,7 @@ src_configure() {
 		backtrace-on-ice = true
 		jemalloc = false
 		lto = "${lto_mode}"
+
 		[dist]
 		src-tarball = false
 		compression-formats = ["xz"]
@@ -514,8 +539,16 @@ src_configure() {
 			llvm-libunwind = "$(usex llvm-libunwind $(usex system-llvm system in-tree) no)"
 		_EOF_
 		if use system-llvm; then
+			local llvm_config="llvm-config"
+			case ${rust_target} in
+				x86_64*gnu)    llvm_config="x86_64-pc-linux-gnu-llvm-config";;
+				x86_64*gnux32) llvm_config="x86_64-pc-linux-gnux32-llvm-config";;
+				i?86*)         llvm_config="i686-pc-linux-gnu-llvm-config";;
+			esac
+
+			local llvm_config="$(get_llvm_prefix "${LLVM_MAX_SLOT}")/bin/${llvm_config}"
 			cat <<- _EOF_ >> "${S}"/config.toml
-				llvm-config = "$(get_llvm_prefix "${LLVM_MAX_SLOT}")/bin/llvm-config"
+				llvm-config = "${llvm_config}"
 			_EOF_
 		fi
 		# by default librustc_target/spec/linux_musl_base.rs sets base.crt_static_default = true;
@@ -526,6 +559,26 @@ src_configure() {
 			_EOF_
 		fi
 	done
+
+	# cat <<- _EOF_ >> "${S}"/config.toml
+	#  		[target.x86_64-unknown-linux-gnu]
+	#  		ar = "x86_64-pc-linux-gnux32-ar"
+	#  		cc = "x86_64-pc-linux-gnux32-gcc"
+	#  		cxx = "x86_64-pc-linux-gnux32-g++"
+	#  		linker = "x86_64-pc-linux-gnux32-gcc"
+	#  		ranlib = "x86_64-pc-linux-gnux32-ranlib"
+	#  		llvm-libunwind = "$(usex llvm-libunwind $(usex system-llvm system in-tree) no)"
+	# 		llvm-config = "$(get_llvm_prefix "${LLVM_MAX_SLOT}")/bin/x86_64-pc-linux-gnu-llvm-config"
+
+	# 		[target.x86_64-unknown-linux-gnux32]
+	#  		ar = "x86_64-pc-linux-gnux32-ar"
+	#  		cc = "x86_64-pc-linux-gnux32-gcc"
+	#  		cxx = "x86_64-pc-linux-gnux32-g++"
+	#  		linker = "x86_64-pc-linux-gnux32-gcc"
+	#  		ranlib = "x86_64-pc-linux-gnux32-ranlib"
+	#  		llvm-libunwind = "$(usex llvm-libunwind $(usex system-llvm system in-tree) no)"
+	# 		llvm-config = "$(get_llvm_prefix "${LLVM_MAX_SLOT}")/bin/x86_64-pc-linux-gnux32-llvm-config"
+	# _EOF_
 	if use wasm; then
 		cat <<- _EOF_ >> "${S}"/config.toml
 			[target.wasm32-unknown-unknown]
@@ -536,86 +589,87 @@ src_configure() {
 	fi
 
 	if [[ -n ${I_KNOW_WHAT_I_AM_DOING_CROSS} ]]; then # whitespace intentionally shifted below
-	# experimental cross support
-	# discussion: https://bugs.gentoo.org/679878
-	# TODO: c*flags, clang, system-llvm, cargo.eclass target support
-	# it would be much better if we could split out stdlib
-	# complilation to separate ebuild and abuse CATEGORY to
-	# just install to /usr/lib/rustlib/<target>
+		# experimental cross support
+		# discussion: https://bugs.gentoo.org/679878
+		# TODO: c*flags, clang, system-llvm, cargo.eclass target support
+		# it would be much better if we could split out stdlib
+		# complilation to separate ebuild and abuse CATEGORY to
+		# just install to /usr/lib/rustlib/<target>
 
-	# extra targets defined as a bash array
-	# spec format:  <LLVM target>:<rust-target>:<CTARGET>
-	# best place would be /etc/portage/env/dev-lang/rust
-	# Example:
-	# RUST_CROSS_TARGETS=(
-	#	"AArch64:aarch64-unknown-linux-gnu:aarch64-unknown-linux-gnu"
-	# )
-	# no extra hand holding is done, no target transformations, all
-	# values are passed as-is with just basic checks, so it's up to user to supply correct values
-	# valid rust targets can be obtained with
-	# 	rustc --print target-list
-	# matching cross toolchain has to be installed
-	# matching LLVM_TARGET has to be enabled for both rust and llvm (if using system one)
-	# only gcc toolchains installed with crossdev are checked for now.
+		# extra targets defined as a bash array
+		# spec format:  <LLVM target>:<rust-target>:<CTARGET>
+		# best place would be /etc/portage/env/dev-lang/rust
+		# Example:
+		# RUST_CROSS_TARGETS=(
+		#	"AArch64:aarch64-unknown-linux-gnu:aarch64-unknown-linux-gnu"
+		# )
+		# no extra hand holding is done, no target transformations, all
+		# values are passed as-is with just basic checks, so it's up to user to supply correct values
+		# valid rust targets can be obtained with
+		# 	rustc --print target-list
+		# matching cross toolchain has to be installed
+		# matching LLVM_TARGET has to be enabled for both rust and llvm (if using system one)
+		# only gcc toolchains installed with crossdev are checked for now.
 
-	# BUG: we can't pass host flags to cross compiler, so just filter for now
-	# BUG: this should be more fine-grained.
-	filter-flags '-mcpu=*' '-march=*' '-mtune=*'
+		# BUG: we can't pass host flags to cross compiler, so just filter for now
+		# BUG: this should be more fine-grained.
+		filter-flags '-mcpu=*' '-march=*' '-mtune=*'
 
-	local cross_target_spec
-	for cross_target_spec in "${RUST_CROSS_TARGETS[@]}";do
-		# extracts first element form <LLVM target>:<rust-target>:<CTARGET>
-		local cross_llvm_target="${cross_target_spec%%:*}"
-		# extracts toolchain triples, <rust-target>:<CTARGET>
-		local cross_triples="${cross_target_spec#*:}"
-		# extracts first element after before : separator
-		local cross_rust_target="${cross_triples%%:*}"
-		# extracts last element after : separator
-		local cross_toolchain="${cross_triples##*:}"
-		use llvm_targets_${cross_llvm_target} || die "need llvm_targets_${cross_llvm_target} target enabled"
-		command -v ${cross_toolchain}-gcc > /dev/null 2>&1 || die "need ${cross_toolchain} cross toolchain"
+		einfo "=== Configuring cross compilation"
+		local cross_target_spec
+		for cross_target_spec in "${RUST_CROSS_TARGETS[@]}";do
+			# extracts first element form <LLVM target>:<rust-target>:<CTARGET>
+			local cross_llvm_target="${cross_target_spec%%:*}"
+			# extracts toolchain triples, <rust-target>:<CTARGET>
+			local cross_triples="${cross_target_spec#*:}"
+			# extracts first element after before : separator
+			local cross_rust_target="${cross_triples%%:*}"
+			# extracts last element after : separator
+			local cross_toolchain="${cross_triples##*:}"
+			use llvm_targets_${cross_llvm_target} || die "need llvm_targets_${cross_llvm_target} target enabled"
+			command -v ${cross_toolchain}-gcc > /dev/null 2>&1 || die "need ${cross_toolchain} cross toolchain"
 
-		cat <<- _EOF_ >> "${S}"/config.toml
-			[target.${cross_rust_target}]
-			ar = "${cross_toolchain}-ar"
-			cc = "${cross_toolchain}-gcc"
-			cxx = "${cross_toolchain}-g++"
-			linker = "${cross_toolchain}-gcc"
-			ranlib = "${cross_toolchain}-ranlib"
-		_EOF_
-		if use system-llvm; then
 			cat <<- _EOF_ >> "${S}"/config.toml
-				llvm-config = "$(get_llvm_prefix "${LLVM_MAX_SLOT}")/bin/llvm-config"
+				[target.${cross_rust_target}]
+				ar = "${cross_toolchain}-ar"
+				cc = "${cross_toolchain}-gcc"
+				cxx = "${cross_toolchain}-g++"
+				linker = "${cross_toolchain}-gcc"
+				ranlib = "${cross_toolchain}-ranlib"
 			_EOF_
-		fi
-		if [[ "${cross_toolchain}" == *-musl* ]]; then
-			cat <<- _EOF_ >> "${S}"/config.toml
-				musl-root = "$(${cross_toolchain}-gcc -print-sysroot)/usr"
-			_EOF_
-		fi
+			if use system-llvm; then
+				cat <<- _EOF_ >> "${S}"/config.toml
+					llvm-config = "$(get_llvm_prefix "${LLVM_MAX_SLOT}")/bin/llvm-config"
+				_EOF_
+			fi
+			if [[ "${cross_toolchain}" == *-musl* ]]; then
+				cat <<- _EOF_ >> "${S}"/config.toml
+					musl-root = "$(${cross_toolchain}-gcc -print-sysroot)/usr"
+				_EOF_
+			fi
 
-		# append cross target to "normal" target list
-		# example 'target = ["powerpc64le-unknown-linux-gnu"]'
-		# becomes 'target = ["powerpc64le-unknown-linux-gnu","aarch64-unknown-linux-gnu"]'
+			# append cross target to "normal" target list
+			# example 'target = ["powerpc64le-unknown-linux-gnu"]'
+			# becomes 'target = ["powerpc64le-unknown-linux-gnu","aarch64-unknown-linux-gnu"]'
 
-		rust_targets="${rust_targets},\"${cross_rust_target}\""
-		sed -i "/^target = \[/ s#\[.*\]#\[${rust_targets}\]#" config.toml || die
+			rust_targets="${rust_targets},\"${cross_rust_target}\""
+			sed -i "/^target = \[/ s#\[.*\]#\[${rust_targets}\]#" config.toml || die
 
-		ewarn
-		ewarn "Enabled ${cross_rust_target} rust target"
-		ewarn "Using ${cross_toolchain} cross toolchain"
-		ewarn
-		if ! has_version -b 'sys-devel/binutils[multitarget]' ; then
-			ewarn "'sys-devel/binutils[multitarget]' is not installed"
-			ewarn "'strip' will be unable to strip cross libraries"
-			ewarn "cross targets will be installed with full debug information"
-			ewarn "enable 'multitarget' USE flag for binutils to be able to strip object files"
 			ewarn
-			ewarn "Alternatively llvm-strip can be used, it supports stripping any target"
-			ewarn "define STRIP=\"llvm-strip\" to use it (experimental)"
+			ewarn "Enabled ${cross_rust_target} rust target"
+			ewarn "Using ${cross_toolchain} cross toolchain"
 			ewarn
-		fi
-	done
+			if ! has_version -b 'sys-devel/binutils[multitarget]' ; then
+				ewarn "'sys-devel/binutils[multitarget]' is not installed"
+				ewarn "'strip' will be unable to strip cross libraries"
+				ewarn "cross targets will be installed with full debug information"
+				ewarn "enable 'multitarget' USE flag for binutils to be able to strip object files"
+				ewarn
+				ewarn "Alternatively llvm-strip can be used, it supports stripping any target"
+				ewarn "define STRIP=\"llvm-strip\" to use it (experimental)"
+				ewarn
+			fi
+		done
 	fi # I_KNOW_WHAT_I_AM_DOING_CROSS
 
 	einfo "Rust configured with the following flags:"
@@ -639,7 +693,7 @@ src_compile() {
 		OPENSSL_DIR=/usr/libx32/
 	fi
 	# we need \n IFS to have config.env with spaces loaded properly. #734018
-	RUST_BACKTRACE=1 "${EPYTHON}" ./x.py build -vv --config="${S}"/config.toml -j$(makeopts_jobs) || die
+	RUST_BACKTRACE=1 "${EPYTHON}" ./x.py build -vvv --config="${S}"/config.toml -j$(makeopts_jobs) || die
 }
 
 src_test() {
@@ -747,6 +801,7 @@ src_install() {
 	_EOF_
 
 	rm -rf "${ED}/usr/lib/${PN}/${PV}"/*.old || die
+	rm -rf "${ED}/usr/lib/${PN}/${PV}/bin"/*.old || die
 	rm -rf "${ED}/usr/lib/${PN}/${PV}/doc"/*.old || die
 
 	# note: eselect-rust adds EROOT to all paths below
