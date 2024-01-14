@@ -6,14 +6,16 @@ EAPI=8
 #CMAKE_MAKEFILE_GENERATOR ?= ninja
 CMAKE_MAKEFILE_GENERATOR=emake
 CMAKE_IN_SOURCE_BUILD=1
-#CMAKE_VERBOSE=ON
 CMAKE_BUILD_TYPE=Release
 
-inherit cmake
+inherit cmake xdg-utils
 
 DESCRIPTION="Linux port of FAR v2"
+MY_PV="v_${PV/_beta/}"
+MY_P="${PN}-${MY_PV}"
+S="${WORKDIR}/${MY_P}"
 HOMEPAGE="https://github.com/elfmz/far2l/"
-SRC_URI="https://github.com/elfmz/far2l/archive/refs/tags/v_${PV}.tar.gz -> ${P}.tar.gz"
+SRC_URI="https://github.com/elfmz/far2l/archive/refs/tags/${MY_PV}.tar.gz -> ${MY_P}.tar.gz"
 KEYWORDS="amd64 arm64 x86"
 
 LICENSE="GPL-2"
@@ -23,7 +25,7 @@ IUSE="+uchardet X +ssh nfs +samba webdav"
 DEPEND="
 	dev-libs/xerces-c
 	uchardet? ( app-i18n/uchardet )
-	dev-util/cmake
+	dev-build/cmake
 	dev-libs/spdlog
 
 	X? ( x11-libs/wxGTK )
@@ -33,8 +35,6 @@ DEPEND="
 	samba? ( net-fs/samba )
 "
 RDEPEND="${DEPEND}"
-
-S="${WORKDIR}/${PN}-v_${PV}"
 
 src_configure() {
 	#FIXME: more options:
@@ -54,13 +54,16 @@ src_configure() {
 src_install() {
 	emake DESTDIR="${D}" install
 
-#	FIXME: CMakeLists.txt might not support prefix (/usr/) properly
-#	dosym "${EPREFIX}"/usr/bin/far2l /usr/lib/far2l/far2l_askpass
-#	dosym "${EPREFIX}"/usr/bin/far2l /usr/lib/far2l/far2l_sudoapp
-
 	newbin - far <<-EOF
 		#!/bin/sh
 		/usr/bin/far2l "\$@" --tty
 	EOF
+}
 
+pkg_postinst() {
+	xdg_icon_cache_update
+}
+
+pkg_postrm() {
+	xdg_icon_cache_update
 }
