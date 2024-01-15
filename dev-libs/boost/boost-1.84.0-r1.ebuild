@@ -1,9 +1,15 @@
-# Copyright 1999-2022 Gentoo Authors
+# Copyright 1999-2024 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-PYTHON_COMPAT=( python3_{8..11} )
+# Keep an eye on both of these after releases for patches:
+# * https://www.boost.org/patches/
+# * https://www.boost.org/users/history/version_${MY_PV}.html
+# (e.g. https://www.boost.org/users/history/version_1_83_0.html)
+# Note that the latter may sometimes feature patches not on the former too.
+
+PYTHON_COMPAT=( python3_{10..12} )
 
 inherit flag-o-matic multiprocessing python-r1 toolchain-funcs multilib-minimal
 
@@ -16,8 +22,8 @@ S="${WORKDIR}/${PN}_${MY_PV}"
 
 LICENSE="Boost-1.0"
 SLOT="0/${PV}" # ${PV} instead of the major version due to bug 486122
-KEYWORDS="~alpha amd64 arm arm64 hppa ~ia64 ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~ppc-macos ~x64-macos ~sparc-solaris ~sparc64-solaris ~x64-solaris ~x86-solaris ~x86-winnt"
-IUSE="bzip2 context debug doc icu lzma +nls mpi numpy python tools zlib zstd"
+KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~ia64 ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+IUSE="bzip2 +context debug doc icu lzma +nls mpi numpy python +stacktrace tools zlib zstd"
 REQUIRED_USE="python? ( ${PYTHON_REQUIRED_USE} )"
 # the tests will never fail because these are not intended as sanity
 # tests at all. They are more a way for upstream to check their own code
@@ -27,7 +33,6 @@ REQUIRED_USE="python? ( ${PYTHON_REQUIRED_USE} )"
 RESTRICT="test"
 
 RDEPEND="
-	!<dev-libs/leatherman-1.12.0-r1
 	bzip2? ( app-arch/bzip2:=[${MULTILIB_USEDEP}] )
 	icu? ( >=dev-libs/icu-3.6:=[${MULTILIB_USEDEP}] )
 	!icu? ( virtual/libiconv[${MULTILIB_USEDEP}] )
@@ -44,17 +49,18 @@ BDEPEND=">=dev-util/b2-4.9.2"
 
 PATCHES=(
 	"${FILESDIR}"/${PN}-1.76.0-fix-x32-build.patch
-	"${FILESDIR}"/${PN}-1.80.0-disable_icu_rpath.patch
+	"${FILESDIR}"/${PN}-1.81.0-disable_icu_rpath.patch
 	"${FILESDIR}"/${PN}-1.79.0-context-x32.patch
 	"${FILESDIR}"/${PN}-1.79.0-build-auto_index-tool.patch
 	# Boost.MPI's __init__.py doesn't work on Py3
 	"${FILESDIR}"/${PN}-1.79.0-boost-mpi-python-PEP-328.patch
-	"${FILESDIR}"/${PN}-1.80.0-fix-mips1-transition.patch
-	# (upstreamed)
-	"${FILESDIR}"/${PN}-1.80.0-unordered-fix.patch
-	"${FILESDIR}"/${PN}-1.80.0-unary-function.patch
-	"${FILESDIR}"/${PN}-1.80.0-python3.11.patch
-	"${FILESDIR}"/${PN}-1.80.0-unordered-ftm-malloc.patch
+	"${FILESDIR}"/${PN}-1.81.0-phoenix-multiple-definitions.patch
+	"${FILESDIR}"/${PN}-1.83.0-math-gcc14.patch
+	"${FILESDIR}"/${PN}-1.82.0-install-jam-x32.patch
+
+	# upstreamed
+	"${FILESDIR}"/${PN}-1.84.0-signals2-patch1.patch
+	"${FILESDIR}"/${PN}-1.84.0-signals2-patch2.patch
 )
 
 python_bindings_needed() {
@@ -75,20 +81,15 @@ create_user-config.jam() {
 	fi
 
 	local compiler compiler_version compiler_executable="$(tc-getCXX)"
-	if [[ ${CHOST} == *-darwin* ]]; then
-		compiler="darwin"
-		compiler_version="$(gcc-fullversion)"
-	else
-		compiler="gcc"
-		compiler_version="$(gcc-version)"
-	fi
+	compiler="gcc"
+	compiler_version="$(gcc-version)"
 
 	if use mpi; then
 		local mpi_configuration="using mpi ;"
 	fi
 
 	cat > "${user_config_jam}" <<- __EOF__ || die
-		using ${compiler} : ${compiler_version} : ${compiler_executable} : <cflags>"${CFLAGS}" <cxxflags>"${CXXFLAGS}" <linkflags>"${LDFLAGS}" <archiver>"$(tc-getAR)" <ranlib>"$(tc-getRANLIB)" ;
+		using ${compiler} : ${compiler_version} : ${compiler_executable} : <cflags>"${CPPFLAGS} ${CFLAGS}" <cxxflags>"${CPPFLAGS} ${CXXFLAGS}" <linkflags>"${LDFLAGS}" <archiver>"$(tc-getAR)" <ranlib>"$(tc-getRANLIB)" ;
 		${mpi_configuration}
 	__EOF__
 
@@ -174,7 +175,7 @@ src_configure() {
 		$(usev !mpi --without-mpi)
 		$(usev !nls --without-locale)
 		$(usev !context '--without-context --without-coroutine --without-fiber')
-		--without-stacktrace
+		$(usev !stacktrace --without-stacktrace)
 		--boost-build="${BROOT}"/usr/share/b2/src
 		--layout=system
 		# building with threading=single is currently not possible
@@ -197,6 +198,16 @@ src_configure() {
 
 	# Use C++17 globally as of 1.80
 	append-cxxflags -std=c++17
+
+	if [[ ${CHOST} != *-darwin* ]]; then
+		# On modern macOS, file I/O is already 64-bit by default,
+		# there's no support for special options like O_LARGEFILE.
+		# Thus, LFS must be disabled.
+		#
+		# On other systems, we need to enable LFS explicitly for 64-bit
+		# offsets on 32-bit hosts (#894564)
+		append-lfs-flags
+	fi
 }
 
 multilib_src_compile() {
@@ -243,16 +254,24 @@ multilib_src_install() {
 				install_name_tool -id "/${d#${D}}" "${d}"
 				eend $?
 				# fix references to other libs
+				# these paths look like this:
+				# bin.v2/libs/thread/build/gcc-12.1/gentoorelease/pch-off/
+				#  threadapi-pthread/threading-multi/visibility-hidden/
+				#  libboost_thread.dylib
 				refs=$(otool -XL "${d}" | \
 					sed -e '1d' -e 's/^\t//' | \
-					grep "^libboost_" | \
+					grep "libboost_" | \
 					cut -f1 -d' ')
 				local r
 				for r in ${refs}; do
-					ebegin "    correcting reference to ${r}"
+					# strip path prefix from references, so we obtain
+					# something like libboost_thread.dylib.
+					local r_basename=${r##*/}
+
+					ebegin "    correcting reference to ${r_basename}"
 					install_name_tool -change \
 						"${r}" \
-						"${EPREFIX}/usr/lib/${r}" \
+						"${EPREFIX}/usr/lib/${r_basename}" \
 						"${d}"
 					eend $?
 				done
