@@ -28,7 +28,6 @@ inherit autotools bash-completion-r1 check-reqs flag-o-matic java-pkg-opt-2 mult
 DESCRIPTION="A full office productivity suite"
 HOMEPAGE="https://www.libreoffice.org"
 SRC_URI="branding? ( https://dev.gentoo.org/~dilfridge/distfiles/${BRANDING} )"
-SRC_URI+=" https://dev.gentoo.org/~asturm/distfiles/${PN}-7.5.2.2-loong-buildsys-fix.patch.xz"
 [[ -n ${PATCHSET} ]] && SRC_URI+=" https://dev.gentoo.org/~asturm/distfiles/${PATCHSET}"
 
 # Split modules following git/tarballs; Core MUST be first!
@@ -51,8 +50,10 @@ ADDONS_SRC=(
 	"${ADDONS_URI}/dragonbox-1.1.3.tar.gz"
 	# not packaged in Gentoo, https://www.netlib.org/fp/dtoa.c
 	"${ADDONS_URI}/dtoa-20180411.tgz"
+	# not packaged in Gentoo, https://github.com/serge-sans-paille/frozen
+	"${ADDONS_URI}/frozen-1.1.1.tar.gz"
 	# not packaged in Gentoo, https://skia.org/
-	"${ADDONS_URI}/skia-m103-b301ff025004c9cd82816c86c547588e6c24b466.tar.xz"
+	"${ADDONS_URI}/skia-m111-a31e897fb3dcbc96b2b40999751611d029bf5404.tar.xz"
 	"base? (
 		${ADDONS_URI}/commons-logging-1.2-src.tar.gz
 		${ADDONS_URI}/ba2930200c9f019c2d93a8c88c651a0f-flow-engine-0.9.4.zip
@@ -104,7 +105,7 @@ LICENSE="|| ( LGPL-3 MPL-1.1 )"
 SLOT="0"
 
 [[ ${MY_PV} == *9999* ]] || \
-KEYWORDS="amd64 ~arm arm64 ~loong ~ppc64 ~riscv x86 ~amd64-linux"
+KEYWORDS="~amd64 ~arm ~arm64 ~loong ~ppc64 ~riscv x86 ~amd64-linux"
 
 COMMON_DEPEND="${PYTHON_DEPS}
 	app-arch/unzip
@@ -114,7 +115,7 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	>=app-text/libabw-0.1.0
 	>=app-text/libebook-0.1
 	app-text/libepubgen
-	>=app-text/libetonyek-0.1
+	>=app-text/libetonyek-0.1.10-r2
 	app-text/libexttextcat
 	app-text/liblangtag
 	>=app-text/libmspub-0.1.0
@@ -137,7 +138,7 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	dev-libs/icu:=
 	dev-libs/libassuan
 	dev-libs/libgpg-error
-	>=dev-libs/liborcus-0.17.2:0/0.17
+	>=dev-libs/liborcus-0.18.0:0/0.18
 	dev-libs/librevenge
 	dev-libs/libxml2
 	dev-libs/libxslt
@@ -184,7 +185,7 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	dbus? ( sys-apps/dbus )
 	eds? (
 		dev-libs/glib:2
-		gnome-base/dconf
+		>=gnome-base/dconf-0.40.0
 		gnome-extra/evolution-data-server
 	)
 	firebird? ( >=dev-db/firebird-3.0.2.32703.0-r1[server] )
@@ -230,7 +231,7 @@ DEPEND="${COMMON_DEPEND}
 	dev-perl/Archive-Zip
 	>=dev-util/cppunit-1.14.0
 	>=dev-util/gperf-3.1
-	dev-util/mdds:1/2.0
+	dev-util/mdds:1/2.1
 	media-libs/glm
 	x11-base/xorg-proto
 	x11-libs/libXt
@@ -245,7 +246,7 @@ DEPEND="${COMMON_DEPEND}
 		media-fonts/dejavu
 		media-fonts/liberation-fonts
 	)
-	valgrind? ( dev-util/valgrind )
+	valgrind? ( dev-debug/valgrind )
 "
 RDEPEND="${COMMON_DEPEND}
 	acct-group/libreoffice
@@ -260,12 +261,15 @@ RDEPEND="${COMMON_DEPEND}
 BDEPEND="
 	dev-util/intltool
 	sys-apps/which
-	sys-devel/bison
-	sys-devel/flex
+	app-alternatives/yacc
+	app-alternatives/lex
 	sys-devel/gettext
 	virtual/pkgconfig
 	clang? (
 		|| (
+			(	sys-devel/clang:18
+				sys-devel/llvm:18
+				=sys-devel/lld-18*	)
 			(	sys-devel/clang:17
 				sys-devel/llvm:17
 				=sys-devel/lld-17*	)
@@ -275,12 +279,9 @@ BDEPEND="
 			(	sys-devel/clang:15
 				sys-devel/llvm:15
 				=sys-devel/lld-15*	)
-			(	sys-devel/clang:14
-				sys-devel/llvm:14
-				=sys-devel/lld-14*	)
 		)
 	)
-	odk? ( >=app-doc/doxygen-1.8.4 )
+	odk? ( >=app-text/doxygen-1.8.4 )
 "
 if [[ ${MY_PV} != *9999* ]] && [[ ${PV} != *_* ]]; then
 	PDEPEND="=app-office/libreoffice-l10n-$(ver_cut 1-2)*"
@@ -299,14 +300,7 @@ PATCHES=(
 	"${FILESDIR}/${PN}-7.2.0.4-qt5detect.patch"
 
 	# maybe upstreamable
-	"${FILESDIR}/libreoffice-7.5.8.2-icu-74-compatibility.patch"
-
-	# 7.6 branch
-	"${WORKDIR}/${PN}-7.5.2.2-loong-buildsys-fix.patch" # bug 881389
-
-	# git master
-	"${FILESDIR}/${PN}-7.5.6.2-gcc-14.patch" # bug 916621
-	"${FILESDIR}/${P}-libxml2-2.12.patch" # bug 917691
+	"${FILESDIR}/${PN}-7.5.8.2-icu-74-compatibility.patch"
 
 	# x32 ABI
 	"${FILESDIR}/${PN}-x32-configure.patch"
@@ -526,6 +520,7 @@ src_configure() {
 		--without-helppack-integration
 		--with-system-gpgmepp
 		--without-system-dragonbox
+		--without-system-frozen
 		--without-system-jfreereport
 		--without-system-libfixmath
 		--without-system-sane
@@ -587,7 +582,7 @@ src_configure() {
 			myeconfargs+=( --with-rhino-jar=$(java-pkg_getjar rhino-1.6 rhino.jar) )
 	fi
 
-	is-flagq "-flto*" && myeconfargs+=( --enable-lto )
+	tc-is-lto && myeconfargs+=( --enable-lto )
 
 	MARIADBCONFIG="$(type -p $(usex mariadb mariadb mysql)_config)" \
 	econf "${myeconfargs[@]}"
