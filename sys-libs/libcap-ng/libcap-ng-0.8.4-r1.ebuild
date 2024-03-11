@@ -6,7 +6,7 @@ EAPI=8
 # Keep an eye on Fedora's packaging (https://src.fedoraproject.org/rpms/libcap-ng/tree/rawhide) for patches
 # Same maintainer in Fedora as upstream
 PYTHON_COMPAT=( python3_{10..12} )
-inherit multilib-minimal autotools flag-o-matic libtool python-r1
+inherit autotools flag-o-matic libtool python-r1 multilib-minimal
 
 DESCRIPTION="POSIX 1003.1e capabilities"
 HOMEPAGE="https://people.redhat.com/sgrubb/libcap-ng/"
@@ -37,14 +37,14 @@ src_prepare() {
 		# bug #668722
 		eautomake
 	fi
-	elibtoolize
+	# elibtoolize
 	multilib_copy_sources
 }
 
 multilib_src_configure() {
 	use sparc && replace-flags -O? -O0
 
-	local ECONF_SOURCE="${S}"
+	ECONF_SOURCE="${S}"
 
 	local myconf=(
 		$(use_enable static-libs static)
@@ -66,7 +66,7 @@ multilib_src_configure() {
 
 		python_foreach_impl setup_python_flags_configure
 	else
-		local BUILD_DIR="${WORKDIR}"/build
+		# local BUILD_DIR="${WORKDIR}"/build
 		run_in_build_dir econf "${pythonconf[@]}" "${myconf[@]}"
 	fi
 }
@@ -75,7 +75,7 @@ multilib_src_compile() {
 	if use python ; then
 		python_foreach_impl run_in_build_dir emake
 	else
-		local BUILD_DIR="${WORKDIR}"/build
+		# local BUILD_DIR="${WORKDIR}"/build
 		emake -C "${BUILD_DIR}"
 	fi
 }
@@ -89,7 +89,7 @@ multilib_src_test() {
 	if use python ; then
 		python_foreach_impl run_in_build_dir emake check
 	else
-		local BUILD_DIR="${WORKDIR}"/build
+		# local BUILD_DIR="${WORKDIR}"/build
 		emake -C "${BUILD_DIR}" check
 	fi
 }
@@ -98,7 +98,7 @@ multilib_src_install() {
 	if use python ; then
 		python_foreach_impl run_in_build_dir emake DESTDIR="${D}" install
 	else
-		local BUILD_DIR="${WORKDIR}"/build
+		# local BUILD_DIR="${WORKDIR}"/build
 		emake -C "${BUILD_DIR}" DESTDIR="${D}" install
 	fi
 
