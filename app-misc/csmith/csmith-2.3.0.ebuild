@@ -25,11 +25,15 @@ EAPI=8
 DESCRIPTION="A tool for generating random C programs. It's handy for stress-testing compilers."
 
 # Homepage, not used by Portage directly but handy for developer reference
-HOMEPAGE="https://embed.cs.utah.edu/csmith/"
+HOMEPAGE="https://github.com/csmith-project/csmith/"
 
 # Point to any required sources; these will be automatically downloaded by
 # Portage.
-SRC_URI="https://embed.cs.utah.edu/csmith/${P}.tar.gz"
+MY_PN=${PN}
+MY_PV=$(ver_cut 1-2)
+MY_P="${MY_PN}-${MY_PV}"
+SRC_URI="https://github.com/csmith-project/csmith/archive/refs/heads/${MY_P}.zip"
+S="${WORKDIR}/csmith-${MY_P}"
 
 # License of the package.  This must match the name of file(s) in the
 # licenses/ directory.  For complex license combination see the developer
