@@ -17,8 +17,10 @@ BASE_SRC_URI_STABLE="https://download.documentfoundation.org/${PN/-l10n/}/stable
 
 LICENSE="|| ( LGPL-3 MPL-1.1 )"
 SLOT="0"
-KEYWORDS="amd64 ~arm arm64 ~loong ppc64 ~riscv x86 ~amd64-linux"
+KEYWORDS="amd64 ~arm arm64 ~loong ppc64 ~riscv ~x86 ~amd64-linux"
 IUSE="offlinehelp"
+
+RESTRICT="strip"
 
 #
 # when changing the language lists, please be careful to preserve the spaces (bug 491728)
@@ -41,8 +43,6 @@ done
 unset lang helppack langpack
 
 RDEPEND+="app-text/hunspell"
-
-RESTRICT="strip"
 
 S="${WORKDIR}"
 
