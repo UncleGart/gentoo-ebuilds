@@ -4,7 +4,7 @@
 
 EAPI=6
 
-inherit eutils autotools systemd
+inherit autotools systemd
 
 DESCRIPTION="Xorg drivers for xrdp"
 HOMEPAGE="http://www.xrdp.org/"
