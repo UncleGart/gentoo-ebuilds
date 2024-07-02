@@ -28,7 +28,7 @@ inherit autotools bash-completion-r1 check-reqs flag-o-matic java-pkg-opt-2 mult
 DESCRIPTION="A full office productivity suite"
 HOMEPAGE="https://www.libreoffice.org"
 SRC_URI="branding? ( https://dev.gentoo.org/~dilfridge/distfiles/${BRANDING} )"
-SRC_URI+=" https://dev.gentoo.org/~asturm/distfiles/${P}-icu-74.tar.xz"
+SRC_URI+=" https://dev.gentoo.org/~asturm/distfiles/${PN}-24.2.3.2-icu-74.tar.xz"
 [[ -n ${PATCHSET} ]] && SRC_URI+=" https://dev.gentoo.org/~asturm/distfiles/${PATCHSET}"
 
 # Split modules following git/tarballs; Core MUST be first!
@@ -94,12 +94,13 @@ unset ADDONS_SRC
 LO_EXTS="nlpsolver scripting-beanshell scripting-javascript wiki-publisher"
 
 IUSE="accessibility base bluetooth +branding clang coinmp +cups custom-cflags +dbus debug eds firebird
-googledrive gstreamer +gtk kde ldap +mariadb odk pdfimport postgres system-abseil test valgrind vulkan
+googledrive gstreamer +gtk kde ldap +mariadb odk pdfimport postgres qt5 qt6 system-abseil test valgrind vulkan
 $(printf 'libreoffice_extensions_%s ' ${LO_EXTS})"
 
 REQUIRED_USE="${PYTHON_REQUIRED_USE}
 	base? ( java )
 	bluetooth? ( dbus )
+	kde? ( || ( qt5 qt6 ) )
 	libreoffice_extensions_nlpsolver? ( java )
 	libreoffice_extensions_scripting-beanshell? ( java )
 	libreoffice_extensions_scripting-javascript? ( java )
@@ -112,7 +113,7 @@ LICENSE="|| ( LGPL-3 MPL-1.1 )"
 SLOT="0"
 
 [[ ${MY_PV} == *9999* ]] || \
-KEYWORDS="~amd64 ~arm ~arm64 ~loong ~ppc64 ~riscv x86 ~amd64-linux"
+KEYWORDS="~amd64 ~arm ~arm64 ~loong ~ppc64 ~riscv ~x86 ~amd64-linux"
 
 COMMON_DEPEND="${PYTHON_DEPS}
 	app-arch/unzip
@@ -144,7 +145,7 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	dev-libs/expat
 	dev-libs/hyphen
 	dev-libs/icu:=
-	dev-libs/libassuan
+	dev-libs/libassuan:=
 	dev-libs/libgpg-error
 	>=dev-libs/liborcus-0.18.0:0/0.18
 	dev-libs/librevenge
@@ -211,15 +212,20 @@ COMMON_DEPEND="${PYTHON_DEPS}
 		x11-libs/pango
 	)
 	kde? (
-		dev-qt/qtcore:5
-		dev-qt/qtgui:5
-		dev-qt/qtwidgets:5
-		dev-qt/qtx11extras:5
-		kde-frameworks/kconfig:5
-		kde-frameworks/kcoreaddons:5
-		kde-frameworks/ki18n:5
-		kde-frameworks/kio:5
-		kde-frameworks/kwindowsystem:5
+		qt5? (
+			kde-frameworks/kconfig:5
+			kde-frameworks/kcoreaddons:5
+			kde-frameworks/ki18n:5
+			kde-frameworks/kio:5
+			kde-frameworks/kwindowsystem:5
+		)
+		qt6? (
+			kde-frameworks/kconfig:6
+			kde-frameworks/kcoreaddons:6
+			kde-frameworks/ki18n:6
+			kde-frameworks/kio:6
+			kde-frameworks/kwindowsystem:6
+		)
 	)
 	ldap? ( net-nds/openldap:= )
 	libreoffice_extensions_scripting-beanshell? ( dev-java/bsh )
@@ -228,6 +234,13 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	!mariadb? ( dev-db/mysql-connector-c:= )
 	pdfimport? ( >=app-text/poppler-22.06:=[cxx] )
 	postgres? ( >=dev-db/postgresql-9.0:*[kerberos] )
+	qt5? (
+		dev-qt/qtcore:5
+		dev-qt/qtgui:5
+		dev-qt/qtwidgets:5
+		dev-qt/qtx11extras:5
+	)
+	qt6? ( dev-qt/qtbase:6[gui,widgets] )
 	system-abseil? ( dev-cpp/abseil-cpp:= )
 "
 # FIXME: cppunit should be moved to test conditional
@@ -312,11 +325,11 @@ PATCHES=(
 	"${FILESDIR}/${PN}-24.2-unused-qt6network.patch"
 
 	# git master
-	"${FILESDIR}/${P}-fix-bashism.patch" # bug #928733
+	"${FILESDIR}/${PN}-24.2.3.2-fix-bashism.patch" # bug #928733
 	# bug #917618, thx to Debian:
-	"${WORKDIR}/${P}-icu-74/${P}-icu-74.2-reviewed-breakIterator-customizations.patch"
-	"${WORKDIR}/${P}-icu-74/${P}-icu-74.2-breakiterator-updates.patch"
-	"${WORKDIR}/${P}-icu-74/${P}-icu-74-unicode.patch"
+	"${WORKDIR}/${PN}-24.2.3.2-icu-74/${PN}-24.2.3.2-icu-74.2-reviewed-breakIterator-customizations.patch"
+	"${WORKDIR}/${PN}-24.2.3.2-icu-74/${PN}-24.2.3.2-icu-74.2-breakiterator-updates.patch"
+	"${WORKDIR}/${PN}-24.2.3.2-icu-74/${PN}-24.2.3.2-icu-74-unicode.patch"
 	# x32 ABI
 	"${FILESDIR}/${PN}-x32-configure.patch"
 	"${FILESDIR}/${PN}-7.3-x32-cpp_uno_bridge.patch"	
@@ -475,7 +488,12 @@ src_configure() {
 	export PYTHON_CFLAGS=$(python_get_CFLAGS)
 	export PYTHON_LIBS=$(python_get_LIBS)
 
-	use kde && export QT5DIR="$(qt5_get_bindir)/.."
+	if use qt5; then
+		export QT5DIR="$(qt5_get_bindir)/.."
+	fi
+	if use qt6; then
+		export QT6DIR="$(qt6_get_bindir)/.."
+	fi
 
 	local gentoo_buildid="Gentoo official package"
 	if [[ -n ${LOCOREGIT_VERSION} ]]; then
@@ -507,6 +525,7 @@ src_configure() {
 		--enable-python=system
 		--enable-randr
 		--enable-release-build
+		--disable-atspi-tests # bug 933257
 		--disable-breakpad
 		--disable-bundle-mariadb
 		--disable-ccache
@@ -516,7 +535,6 @@ src_configure() {
 		--disable-online-update
 		--disable-openssl
 		--disable-pdfium
-		--disable-qt6
 		--with-extra-buildid="${gentoo_buildid}"
 		--enable-extension-integration
 		--with-external-dict-dir="${EPREFIX}/usr/share/myspell"
@@ -550,12 +568,12 @@ src_configure() {
 		$(use_enable firebird firebird-sdbc)
 		$(use_enable gstreamer gstreamer-1-0)
 		$(use_enable gtk gtk3)
-		$(use_enable kde kf5)
-		$(use_enable kde qt5)
 		$(use_enable ldap)
 		$(use_enable odk)
 		$(use_enable pdfimport)
 		$(use_enable postgres postgresql-sdbc)
+		$(use_enable qt5)
+		$(use_enable qt6)
 		$(use_enable vulkan skia)
 		$(use_with accessibility lxml)
 		$(use_with coinmp system-coinmp)
@@ -566,6 +584,9 @@ src_configure() {
 		$(use_with system-abseil)
 		$(use_with valgrind)
 	)
+
+	use qt5 && myeconfargs+=( $(use_enable kde kf5) )
+	use qt6 && myeconfargs+=( $(use_enable kde kf6) )
 
 	if use eds || use gtk; then
 		myeconfargs+=( --enable-dconf --enable-gio )
