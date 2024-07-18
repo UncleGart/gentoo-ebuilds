@@ -28,6 +28,7 @@ inherit autotools bash-completion-r1 check-reqs flag-o-matic java-pkg-opt-2 mult
 DESCRIPTION="A full office productivity suite"
 HOMEPAGE="https://www.libreoffice.org"
 SRC_URI="branding? ( https://dev.gentoo.org/~dilfridge/distfiles/${BRANDING} )"
+SRC_URI+=" https://dev.gentoo.org/~asturm/distfiles/${PN}-24.2.3.2-icu-74.tar.xz"
 [[ -n ${PATCHSET} ]] && SRC_URI+=" https://dev.gentoo.org/~asturm/distfiles/${PATCHSET}"
 
 # Split modules following git/tarballs; Core MUST be first!
@@ -53,7 +54,9 @@ ADDONS_SRC=(
 	# not packaged in Gentoo, https://github.com/serge-sans-paille/frozen
 	"${ADDONS_URI}/frozen-1.1.1.tar.gz"
 	# not packaged in Gentoo, https://skia.org/
-	"${ADDONS_URI}/skia-m111-a31e897fb3dcbc96b2b40999751611d029bf5404.tar.xz"
+	"${ADDONS_URI}/skia-m116-2ddcf183eb260f63698aa74d1bb380f247ad7ccd.tar.xz"
+	# not packaged in Gentoo, https://github.com/tsyrogit/zxcvbn-c
+	"${ADDONS_URI}/zxcvbn-c-2.5.tar.gz"
 	"base? (
 		${ADDONS_URI}/commons-logging-1.2-src.tar.gz
 		${ADDONS_URI}/ba2930200c9f019c2d93a8c88c651a0f-flow-engine-0.9.4.zip
@@ -68,7 +71,11 @@ ADDONS_SRC=(
 		${ADDONS_URI}/ace6ab49184e329db254e454a010f56d-libxml-1.1.7.zip
 		${ADDONS_URI}/39bb3fcea1514f1369fcfc87542390fd-sacjava-1.3.zip
 	)"
-	"java? ( ${ADDONS_URI}/17410483b5b5f267aa18b7e00b65e6e0-hsqldb_1_8_0.zip )"
+	# Java-WebSocket: not packaged in Gentoo, https://github.com/TooTallNate/Java-WebSocket
+	"java? (
+		${ADDONS_URI}/Java-WebSocket-1.5.4.tar.gz
+		${ADDONS_URI}/17410483b5b5f267aa18b7e00b65e6e0-hsqldb_1_8_0.zip
+	)"
 	# no release for 8 years, should we package it?
 	"libreoffice_extensions_wiki-publisher? ( ${ADDONS_URI}/a7983f859eafb2677d7ff386a023bc40-xsltml_2.1.2.zip )"
 	# Does not build with 1.6 rhino at all
@@ -87,12 +94,13 @@ unset ADDONS_SRC
 LO_EXTS="nlpsolver scripting-beanshell scripting-javascript wiki-publisher"
 
 IUSE="accessibility base bluetooth +branding clang coinmp +cups custom-cflags +dbus debug eds firebird
-googledrive gstreamer +gtk kde ldap +mariadb odk pdfimport postgres test system-abseil valgrind vulkan
+googledrive gstreamer +gtk kde ldap +mariadb odk pdfimport postgres qt5 qt6 system-abseil test valgrind vulkan
 $(printf 'libreoffice_extensions_%s ' ${LO_EXTS})"
 
 REQUIRED_USE="${PYTHON_REQUIRED_USE}
 	base? ( java )
 	bluetooth? ( dbus )
+	kde? ( || ( qt5 qt6 ) )
 	libreoffice_extensions_nlpsolver? ( java )
 	libreoffice_extensions_scripting-beanshell? ( java )
 	libreoffice_extensions_scripting-javascript? ( java )
@@ -105,17 +113,18 @@ LICENSE="|| ( LGPL-3 MPL-1.1 )"
 SLOT="0"
 
 [[ ${MY_PV} == *9999* ]] || \
-KEYWORDS="~amd64 ~arm ~arm64 ~loong ~ppc64 ~riscv x86 ~amd64-linux"
+KEYWORDS="~amd64 ~arm ~arm64 ~loong ~ppc64 ~riscv ~x86 ~amd64-linux"
 
 COMMON_DEPEND="${PYTHON_DEPS}
 	app-arch/unzip
 	app-arch/zip
+	app-crypt/argon2:=
 	app-crypt/gpgme:=[cxx]
 	app-text/hunspell:=
 	>=app-text/libabw-0.1.0
 	>=app-text/libebook-0.1
 	app-text/libepubgen
-	>=app-text/libetonyek-0.1.10-r2
+	>=app-text/libetonyek-0.1
 	app-text/libexttextcat
 	app-text/liblangtag
 	>=app-text/libmspub-0.1.0
@@ -136,7 +145,7 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	dev-libs/expat
 	dev-libs/hyphen
 	dev-libs/icu:=
-	dev-libs/libassuan
+	dev-libs/libassuan:=
 	dev-libs/libgpg-error
 	>=dev-libs/liborcus-0.18.0:0/0.18
 	dev-libs/librevenge
@@ -203,15 +212,20 @@ COMMON_DEPEND="${PYTHON_DEPS}
 		x11-libs/pango
 	)
 	kde? (
-		dev-qt/qtcore:5
-		dev-qt/qtgui:5
-		dev-qt/qtwidgets:5
-		dev-qt/qtx11extras:5
-		kde-frameworks/kconfig:5
-		kde-frameworks/kcoreaddons:5
-		kde-frameworks/ki18n:5
-		kde-frameworks/kio:5
-		kde-frameworks/kwindowsystem:5
+		qt5? (
+			kde-frameworks/kconfig:5
+			kde-frameworks/kcoreaddons:5
+			kde-frameworks/ki18n:5
+			kde-frameworks/kio:5
+			kde-frameworks/kwindowsystem:5
+		)
+		qt6? (
+			kde-frameworks/kconfig:6
+			kde-frameworks/kcoreaddons:6
+			kde-frameworks/ki18n:6
+			kde-frameworks/kio:6
+			kde-frameworks/kwindowsystem:6
+		)
 	)
 	ldap? ( net-nds/openldap:= )
 	libreoffice_extensions_scripting-beanshell? ( dev-java/bsh )
@@ -220,6 +234,13 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	!mariadb? ( dev-db/mysql-connector-c:= )
 	pdfimport? ( >=app-text/poppler-22.06:=[cxx] )
 	postgres? ( >=dev-db/postgresql-9.0:*[kerberos] )
+	qt5? (
+		dev-qt/qtcore:5
+		dev-qt/qtgui:5
+		dev-qt/qtwidgets:5
+		dev-qt/qtx11extras:5
+	)
+	qt6? ( dev-qt/qtbase:6[gui,widgets] )
 	system-abseil? ( dev-cpp/abseil-cpp:= )
 "
 # FIXME: cppunit should be moved to test conditional
@@ -237,8 +258,8 @@ DEPEND="${COMMON_DEPEND}
 	x11-libs/libXt
 	x11-libs/libXtst
 	java? (
-		dev-java/ant-core
-		>=virtual/jdk-11
+		dev-java/ant:0
+		>=virtual/jdk-17
 	)
 	test? (
 		app-crypt/gnupg
@@ -254,7 +275,7 @@ RDEPEND="${COMMON_DEPEND}
 	!app-office/libreoffice-bin
 	!app-office/libreoffice-bin-debug
 	media-fonts/liberation-fonts
-	|| ( x11-misc/xdg-utils kde-plasma/kde-cli-tools )
+	|| ( x11-misc/xdg-utils kde-plasma/kde-cli-tools:* )
 	java? ( >=virtual/jre-11 )
 	kde? ( kde-frameworks/breeze-icons:* )
 "
@@ -297,13 +318,17 @@ PATCHES=(
 	# not upstreamable stuff
 	"${FILESDIR}/${PN}-5.3.4.2-kioclient5.patch"
 	"${FILESDIR}/${PN}-6.1-nomancompress.patch"
-	"${FILESDIR}/${PN}-7.2.0.4-qt5detect.patch"
+	"${FILESDIR}/${PN}-24.2-qtdetect.patch"
 
-	# maybe upstreamable
-	"${FILESDIR}/${PN}-7.5.8.2-icu-74-compatibility.patch"
+	# TODO: upstream
+	"${FILESDIR}/${PN}-7.6-unused-qt5network.patch"
+	"${FILESDIR}/${PN}-24.2-unused-qt6network.patch"
 
-	# 24.2 branch
-	"${FILESDIR}/${PN}-7.5.9.2-libxml2-2.12.patch" # bug 917691
+	# git master
+	# bug #917618, thx to Debian:
+	"${WORKDIR}/${PN}-24.2.3.2-icu-74/${PN}-24.2.3.2-icu-74.2-reviewed-breakIterator-customizations.patch"
+	"${WORKDIR}/${PN}-24.2.3.2-icu-74/${PN}-24.2.3.2-icu-74.2-breakiterator-updates.patch"
+	"${WORKDIR}/${PN}-24.2.3.2-icu-74/${PN}-24.2.3.2-icu-74-unicode.patch"
 	# x32 ABI
 	"${FILESDIR}/${PN}-x32-configure.patch"
 	"${FILESDIR}/${PN}-7.3-x32-cpp_uno_bridge.patch"	
@@ -462,7 +487,12 @@ src_configure() {
 	export PYTHON_CFLAGS=$(python_get_CFLAGS)
 	export PYTHON_LIBS=$(python_get_LIBS)
 
-	use kde && export QT5DIR="$(qt5_get_bindir)/.."
+	if use qt5; then
+		export QT5DIR="$(qt5_get_bindir)/.."
+	fi
+	if use qt6; then
+		export QT6DIR="$(qt6_get_bindir)/.."
+	fi
 
 	local gentoo_buildid="Gentoo official package"
 	if [[ -n ${LOCOREGIT_VERSION} ]]; then
@@ -490,10 +520,11 @@ src_configure() {
 		--enable-build-opensymbol
 		--enable-cairo-canvas
 		--enable-largefile
-		--enable-mergelibs
+		--enable-mergelibs=more
 		--enable-python=system
 		--enable-randr
 		--enable-release-build
+		--disable-atspi-tests # bug 933257
 		--disable-breakpad
 		--disable-bundle-mariadb
 		--disable-ccache
@@ -503,7 +534,6 @@ src_configure() {
 		--disable-online-update
 		--disable-openssl
 		--disable-pdfium
-		--disable-qt6
 		--with-extra-buildid="${gentoo_buildid}"
 		--enable-extension-integration
 		--with-external-dict-dir="${EPREFIX}/usr/share/myspell"
@@ -526,6 +556,7 @@ src_configure() {
 		--without-system-jfreereport
 		--without-system-libfixmath
 		--without-system-sane
+		--without-system-zxcvbn
 		$(use_enable base report-builder)
 		$(use_enable bluetooth sdremote-bluetooth)
 		$(use_enable coinmp)
@@ -536,12 +567,12 @@ src_configure() {
 		$(use_enable firebird firebird-sdbc)
 		$(use_enable gstreamer gstreamer-1-0)
 		$(use_enable gtk gtk3)
-		$(use_enable kde kf5)
-		$(use_enable kde qt5)
 		$(use_enable ldap)
 		$(use_enable odk)
 		$(use_enable pdfimport)
 		$(use_enable postgres postgresql-sdbc)
+		$(use_enable qt5)
+		$(use_enable qt6)
 		$(use_enable vulkan skia)
 		$(use_with accessibility lxml)
 		$(use_with coinmp system-coinmp)
@@ -552,6 +583,9 @@ src_configure() {
 		$(use_with system-abseil)
 		$(use_with valgrind)
 	)
+
+	use qt5 && myeconfargs+=( $(use_enable kde kf5) )
+	use qt6 && myeconfargs+=( $(use_enable kde kf6) )
 
 	if use eds || use gtk; then
 		myeconfargs+=( --enable-dconf --enable-gio )
