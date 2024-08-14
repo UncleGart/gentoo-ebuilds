@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Gentoo Authors
+# Copyright 1999-2024 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 # @ECLASS: rust-toolchain.eclass
@@ -7,9 +7,8 @@
 # @SUPPORTED_EAPIS: 8
 # @BLURB: helps map gentoo arches to rust ABIs
 # @DESCRIPTION:
-# This eclass contains a src_unpack default phase function, and
-# helper functions, to aid in proper rust-ABI handling for various
-# gentoo arches.
+# This eclass contains helper functions, to aid in proper rust-ABI handling for
+# various gentoo arches.
 
 case ${EAPI} in
 	8) ;;
