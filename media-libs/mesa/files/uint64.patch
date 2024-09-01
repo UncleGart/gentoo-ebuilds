@@ -1,0 +1,36 @@
+diff --git a/src/intel/vulkan/grl/include/GRLOCLCompatibility.h b/src/intel/vulkan/grl/include/GRLOCLCompatibility.h
+index 119104f..bc6a646 100644
+--- a/src/intel/vulkan/grl/include/GRLOCLCompatibility.h
++++ b/src/intel/vulkan/grl/include/GRLOCLCompatibility.h
+@@ -12,20 +12,26 @@
+ typedef uchar  uint8_t;
+ typedef ushort uint16_t;
+ typedef uint   uint32_t;
+-typedef ulong  uint64_t;
+ typedef char   int8_t;
+ typedef short  int16_t;
+ typedef int    int32_t;
++
++#if defined(__ILP32__) && defined(__x86_64__)
++typedef unsigned long long uint64_t;
++typedef long long int64_t;
++#else
++typedef ulong  uint64_t;
+ typedef long   int64_t;
++#endif
+ 
+ #else
+ 
+ #include <stdint.h>
+ 
+-typedef uint8_t  uchar;
+-typedef uint16_t ushort;
+-typedef uint32_t uint;
+-typedef uint64_t ulong;
++typedef unsigned char  uchar;
++typedef unsigned short ushort;
++typedef unsigned int   uint;
++typedef unsigned long  ulong;
+ 
+ #define __constant
+ #define __global
