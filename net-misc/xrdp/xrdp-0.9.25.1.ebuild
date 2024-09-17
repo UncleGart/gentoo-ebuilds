@@ -12,20 +12,24 @@ SRC_URI="https://github.com/neutrinolabs/xrdp/releases/download/v${PV}/${P}.tar.
 
 LICENSE="Apache-2.0"
 SLOT="0"
-KEYWORDS="~amd64 ~arm ~arm64 ~x86"
+KEYWORDS="~amd64 ~arm ~arm64 ~riscv ~x86"
 RESTRICT="mirror"
-IUSE="debug fuse kerberos jpeg -neutrinordp pam +pulseaudio systemd +vsock +xorg -xrdpvr"
+IUSE="aac debug fuse ipv6 kerberos jpeg -neutrinordp lame opus pam +pixman pulseaudio -rfxcodec systemd +vsock +xorg -xrdpvr"
 
 RDEPEND="dev-libs/openssl:0=
+	aac? ( media-libs/fdk-aac:0= )
+	fuse? ( sys-fs/fuse:0= )
+	jpeg? ( virtual/jpeg:0= )
+	kerberos? ( virtual/krb5:0= )
+	lame? ( media-sound/lame:0= )
+	neutrinordp? ( net-misc/freerdp:0= )
+	opus? ( media-libs/libopusenc:0= )
+	pam? ( sys-libs/pam:0= )
+	pixman? ( x11-libs/pixman:0= )
 	pulseaudio? ( media-sound/pulseaudio:0= )
 	x11-libs/libX11:0=
 	x11-libs/libXfixes:0=
 	x11-libs/libXrandr:0=
-	fuse? ( sys-fs/fuse:0= )
-	jpeg? ( virtual/jpeg:0= )
-	kerberos? ( virtual/krb5:0= )
-	pam? ( sys-libs/pam:0= )
-	neutrinordp? ( net-misc/freerdp:0= )
 	xrdpvr? ( media-video/ffmpeg:0= )"
 PDEPEND="xorg? ( net-misc/xorgxrdp )"
 DEPEND="${RDEPEND}
@@ -77,13 +81,16 @@ src_configure() {
 		# (no need for -ljpeg compat)
 		$(use jpeg && has_version 'media-libs/libjpeg-turbo:0' && echo --enable-tjpeg)
 
-		# Disable assembler optimizations for x32 ABI
-		$(use abi_x86_x32 && echo --with-simd=no)
-
 		# -- others --
+		$(use_enable aac fdkaac)
 		$(use_enable debug debug-all)
 		$(use_enable fuse)
+		$(use_enable ipv6)
+		$(use_enable lame mp3lame)
 		$(use_enable neutrinordp)
+		$(use_enable opus)
+		$(use_enable pixman)
+		$(use_enable rfxcodec)
 		$(use_enable vsock)
 		$(use_enable xrdpvr)
 
@@ -119,7 +126,7 @@ pkg_preinst() {
 		cp {"${EROOT}","${ED}"}/etc/xrdp/rsakeys.ini || die
 	else
 		einfo "Running xrdp-keygen to generate new rsakeys.ini ..."
-		"${S}"/keygen/xrdp-keygen xrdp "${ED}"/etc/xrdp/rsakeys.ini \
+		LD_LIBRARY_PATH="${ED}/usr/$(get_libdir)/xrdp" "${ED}"/usr/bin/xrdp-keygen xrdp "${ED}"/etc/xrdp/rsakeys.ini \
 			|| die "xrdp-keygen failed to generate RSA keys"
 	fi
 }

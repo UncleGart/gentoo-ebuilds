@@ -1,0 +1,16 @@
+<pkgmetadata>
+    <maintainer type="person">
+        <email>dilfridge@gentoo.org</email>
+        <name>Andreas K. Hüttel</name>
+    </maintainer>
+    <use>
+        <flag name="fuse">Enable clipboard file / device redirection via <pkg>sys-fs/fuse</pkg></flag>
+        <flag name="pixman">Use pixman library <pkg>x11-libs/pixman</pkg></flag>
+        <flag name="neutrinordp">Build neutrinordp module</flag>
+        <flag name="xrdpvr">Build xrdpvr module</flag>
+        <flag name="rfxcodec">Use included librfxcodec library</flag>
+    </use>
+    <upstream>
+        <remote-id type="github">neutrinolabs/xrdp</remote-id>
+    </upstream>
+</pkgmetadata>

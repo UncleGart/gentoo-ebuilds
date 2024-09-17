@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Id$
 
-EAPI=6
+EAPI=8
 
 inherit autotools systemd
 
@@ -12,15 +12,14 @@ SRC_URI="https://github.com/neutrinolabs/${PN}/releases/download/v${PV}/${P}.tar
 
 LICENSE="Apache-2.0"
 SLOT="0"
-KEYWORDS="~amd64 ~arm ~arm64 ~x86"
+KEYWORDS="~amd64 ~arm ~arm64 ~riscv ~x86"
 RESTRICT="mirror"
 IUSE="glamor"
 
 RDEPEND="
 	>=net-misc/xrdp-0.9.14
 	x11-libs/libX11:0=
-    >=x11-base/xorg-server-1.19.0
-	glamor? ( x11-libs/libdrm )"
+	glamor? ( >=x11-base/xorg-server-1.19.0 x11-libs/libdrm )"
 DEPEND="${RDEPEND}
 	dev-lang/nasm:0="
 
@@ -31,9 +30,6 @@ PATCHES=(
 src_configure() {
 	local myconf=(
 		$(use_enable glamor)
-
-		# Disable assembler optimizations for x32 ABI
-		$(use abi_x86_x32 && echo --with-simd=no)
 	)
 
 	autoreconf
@@ -42,6 +38,7 @@ src_configure() {
 
 src_install() {
 	default
-	prune_libtool_files --all
+
+	find "${D}" -name '*.la' -delete || die
 }
 
