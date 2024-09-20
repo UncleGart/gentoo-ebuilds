@@ -14,7 +14,7 @@ LICENSE="Apache-2.0"
 SLOT="0"
 KEYWORDS="~amd64 ~arm ~arm64 ~riscv ~x86"
 RESTRICT="mirror"
-IUSE="glamor"
+IUSE="glamor simd"
 
 RDEPEND="
 	>=net-misc/xrdp-0.9.14
@@ -30,6 +30,7 @@ PATCHES=(
 src_configure() {
 	local myconf=(
 		$(use_enable glamor)
+		$(use_with simd)
 	)
 
 	autoreconf

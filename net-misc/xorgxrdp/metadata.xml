@@ -1,0 +1,13 @@
+<pkgmetadata>
+    <maintainer type="person">
+        <email>dilfridge@gentoo.org</email>
+        <name>Andreas K. Huettel</name>
+    </maintainer>
+    <use>
+        <flag name="glamor">Use glamor(requires xorg server 1.19+)</flag>
+        <flag name="simd">Enable SIMD extensions</flag>
+    </use>
+    <upstream>
+        <remote-id type="github">neutrinolabs/xorgxrdp</remote-id>
+    </upstream>
+</pkgmetadata>
