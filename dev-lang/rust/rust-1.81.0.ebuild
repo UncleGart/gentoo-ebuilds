@@ -8,7 +8,7 @@ EAPI=8
 
 PYTHON_COMPAT=( python3_{10..13} )
 
-inherit bash-completion-r1 check-reqs estack flag-o-matic llvm multiprocessing \
+inherit bash-completion-r1 check-reqs estack flag-o-matic llvm multiprocessing optfeature \
 	multilib multilib-build python-any-r1 rust-toolchain toolchain-funcs verify-sig
 
 if [[ ${PV} = *beta* ]]; then
@@ -25,7 +25,7 @@ else
 	KEYWORDS="~amd64 ~arm ~arm64 ~loong ~mips ~ppc ~ppc64 ~riscv ~sparc ~x86"
 fi
 
-RUST_STAGE0_VERSION="1.$(($(ver_cut 2) - 1)).0"
+RUST_STAGE0_VERSION="1.$(($(ver_cut 2) - 1)).1"
 
 DESCRIPTION="Systems programming language from Mozilla"
 HOMEPAGE="https://www.rust-lang.org/"
@@ -35,6 +35,7 @@ SRC_URI="
 	verify-sig? ( https://static.rust-lang.org/dist/${SRC}.asc )
 	!system-bootstrap? ( $(rust_all_arch_uris rust-${RUST_STAGE0_VERSION}) )
 "
+S="${WORKDIR}/${MY_P}-src"
 
 # keep in sync with llvm ebuild of the same version as bundled one.
 ALL_LLVM_TARGETS=( AArch64 AMDGPU ARC ARM AVR BPF CSKY DirectX Hexagon Lanai
@@ -163,8 +164,6 @@ QA_PRESTRIPPED="
 # so we can safely silence the warning for this QA check.
 QA_EXECSTACK="usr/lib/${PN}/${PV}/lib/rustlib/*/lib*.rlib:lib.rmeta"
 
-S="${WORKDIR}/${MY_P}-src"
-
 # causes double bootstrap
 RESTRICT="test"
 
@@ -174,8 +173,8 @@ PATCHES=(
 	"${FILESDIR}"/1.78.0-musl-dynamic-linking.patch
 	"${FILESDIR}"/1.74.1-cross-compile-libz.patch
 	#"${FILESDIR}"/1.72.0-bump-libc-deps-to-0.2.146.patch  # pending refresh
-	"${FILESDIR}"/1.78.0-ignore-broken-and-non-applicable-tests.patch
 	"${FILESDIR}"/1.67.0-doc-wasm.patch
+	"${FILESDIR}"/1.79.0-revert-8c40426.patch
 )
 
 clear_vendor_checksums() {
@@ -268,6 +267,8 @@ pkg_setup() {
 		export PKG_CONFIG_PATH="${ROOT}/usr/$(get_libdir)/pkgconfig"
 		export OPENSSL_INCLUDE_DIR="${ROOT}/usr/include"
 		export OPENSSL_LIB_DIR="${ROOT}/usr/$(get_libdir)"
+
+		use system-bootstrap || die "USE=system-bootstrap is required when cross-compiling"
 	fi
 
 	use system-bootstrap && bootstrap_rust_version_check
@@ -276,6 +277,9 @@ pkg_setup() {
 		llvm_pkg_setup
 
 		local llvm_config="$(get_llvm_prefix "${LLVM_MAX_SLOT}")/bin/llvm-config"
+		if use abi_x86_x32; then
+			llvm_config="$(get_llvm_prefix "${LLVM_MAX_SLOT}")/bin/x86_64-pc-linux-gnu-llvm-config"
+		fi
 		export LLVM_LINK_SHARED=1
 		export RUSTFLAGS="${RUSTFLAGS} -Lnative=$("${llvm_config}" --libdir)"
 	fi
@@ -312,6 +316,14 @@ src_prepare() {
 		has_version sys-devel/gcc || esetup_unwind_hack
 		local rust_stage0_root="${WORKDIR}"/rust-stage0
 		local rust_stage0="rust-${RUST_STAGE0_VERSION}-$(rust_abi "${CBUILD}")"
+		if use abi_x86_x32; then
+			# TODO: gnu vs musl
+			einfo "Preparing for x32 ABI"
+			rust_stage0="rust-${RUST_STAGE0_VERSION}-x86_64-unknown-linux-gnu"
+			# export PKG_CONFIG_PATH=/usr/libx32/pkgconfig
+			# export OPENSSL_INCLUDE_DIR=/usr/libx32/
+			# export OPENSSL_LIB_DIR=/usr/libx32/
+		fi	
 
 		"${WORKDIR}/${rust_stage0}"/install.sh --disable-ldconfig \
 			--without=rust-docs-json-preview,rust-docs --destdir="${rust_stage0_root}" --prefix=/ || die
@@ -418,7 +430,7 @@ src_configure() {
 		compiler-docs = false
 		submodules = false
 		python = "${EPYTHON}"
-		locked-deps = true
+		locked-deps = false
 		vendor = true
 		extended = true
 		tools = [${tools}]
@@ -490,15 +502,15 @@ src_configure() {
 			llvm-libunwind = "$(usex llvm-libunwind $(usex system-llvm system in-tree) no)"
 		_EOF_
 		if use system-llvm; then
-			local llvm_config="llvm-config"
+			local llvm_config="$(get_llvm_prefix "${LLVM_MAX_SLOT}")/bin/llvm-config"
 			case ${rust_target} in
-				x86_64*gnu)    llvm_config="x86_64-pc-linux-gnu-llvm-config";;
-				x86_64*gnux32) llvm_config="x86_64-pc-linux-gnux32-llvm-config";;
-				i?86*)         llvm_config="i686-pc-linux-gnu-llvm-config";;
+				x86_64*gnu)    llvm_config="$(get_llvm_prefix "${LLVM_MAX_SLOT}")/bin/x86_64-pc-linux-gnu-llvm-config";;
+				x86_64*gnux32) llvm_config="$(get_llvm_prefix "${LLVM_MAX_SLOT}")/bin/x86_64-pc-linux-gnux32-llvm-config";;
+				i?86*)         llvm_config="$(get_llvm_prefix "${LLVM_MAX_SLOT}")/bin/i686-pc-linux-gnu-llvm-config";;
 			esac
 
 			cat <<- _EOF_ >> "${S}"/config.toml
-				llvm-config = "$(get_llvm_prefix "${LLVM_MAX_SLOT}")/bin/llvm-config"
+				llvm-config = "${llvm_config}"
 			_EOF_
 		fi
 		# by default librustc_target/spec/linux_musl_base.rs sets base.crt_static_default = true;
@@ -782,11 +794,11 @@ pkg_postinst() {
 	fi
 
 	if has_version app-editors/emacs; then
-		elog "install app-emacs/rust-mode to get emacs support for rust."
+		optfeature "emacs support for rust" app-emacs/rust-mode
 	fi
 
 	if has_version app-editors/gvim || has_version app-editors/vim; then
-		elog "install app-vim/rust-vim to get vim support for rust."
+		optfeature "vim support for rust" app-vim/rust-vim
 	fi
 }
 
