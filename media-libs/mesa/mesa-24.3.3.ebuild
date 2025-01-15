@@ -1,9 +1,9 @@
-# Copyright 1999-2024 Gentoo Authors
+# Copyright 1999-2025 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-LLVM_COMPAT=( {15..18} )
+LLVM_COMPAT=( {15..19} )
 LLVM_OPTIONAL=1
 CARGO_OPTIONAL=1
 PYTHON_COMPAT=( python3_{10..13} )
@@ -19,6 +19,9 @@ CRATES="
 	unicode-ident@1.0.12
 	paste@1.0.14
 "
+
+RUST_MIN_VER="1.74.1"
+RUST_OPTIONAL=1
 
 inherit cargo
 
@@ -60,7 +63,7 @@ IUSE="${IUSE_VIDEO_CARDS}
 	cpu_flags_x86_sse2 d3d9 debug +llvm
 	lm-sensors opencl +opengl osmesa +proprietary-codecs selinux
 	test unwind vaapi valgrind vdpau vulkan
-	vulkan-overlay wayland +X xa +zstd"
+	wayland +X xa +zstd"
 RESTRICT="!test? ( test )"
 REQUIRED_USE="
 	d3d9? (
@@ -77,7 +80,6 @@ REQUIRED_USE="
 		)
 	)
 	llvm? ( ${LLVM_REQUIRED_USE} )
-	vulkan-overlay? ( vulkan )
 	video_cards_lavapipe? ( llvm vulkan )
 	video_cards_radeon? ( x86? ( llvm ) amd64? ( llvm ) )
 	video_cards_r300?   ( x86? ( llvm ) amd64? ( llvm ) )
@@ -95,10 +97,11 @@ RDEPEND="
 	unwind? ( sys-libs/libunwind[${MULTILIB_USEDEP}] )
 	llvm? (
 		$(llvm_gen_dep "
-			sys-devel/llvm:\${LLVM_SLOT}[llvm_targets_AMDGPU(+),${MULTILIB_USEDEP}]
+			llvm-core/llvm:\${LLVM_SLOT}[llvm_targets_AMDGPU(+),${MULTILIB_USEDEP}]
 			opencl? (
 				dev-util/spirv-llvm-translator:\${LLVM_SLOT}
-				sys-devel/clang:\${LLVM_SLOT}[llvm_targets_AMDGPU(+),${MULTILIB_USEDEP}]
+				llvm-core/clang:\${LLVM_SLOT}[llvm_targets_AMDGPU(+),${MULTILIB_USEDEP}]
+				=llvm-core/libclc-\${LLVM_SLOT}*[spirv(-)]
 			)
 		")
 		video_cards_r600? (
@@ -111,7 +114,7 @@ RDEPEND="
 	lm-sensors? ( sys-apps/lm-sensors:=[${MULTILIB_USEDEP}] )
 	opencl? (
 		>=virtual/opencl-3
-		dev-libs/libclc[spirv(-)]
+		llvm-core/libclc[spirv(-)]
 		>=dev-util/spirv-tools-1.3.231.0
 		virtual/libelf:0=
 	)
@@ -145,9 +148,9 @@ RDEPEND="${RDEPEND}
 "
 
 DEPEND="${RDEPEND}
-	video_cards_d3d12? ( >=dev-util/directx-headers-1.613.0[${MULTILIB_USEDEP}] )
+	video_cards_d3d12? ( >=dev-util/directx-headers-1.614.1[${MULTILIB_USEDEP}] )
 	valgrind? ( dev-debug/valgrind )
-	wayland? ( >=dev-libs/wayland-protocols-1.34 )
+	wayland? ( >=dev-libs/wayland-protocols-1.38 )
 	X? (
 		x11-libs/libXrandr[${MULTILIB_USEDEP}]
 		x11-base/xorg-proto
@@ -156,7 +159,7 @@ DEPEND="${RDEPEND}
 BDEPEND="
 	${PYTHON_DEPS}
 	opencl? (
-		>=virtual/rust-1.62.0
+		${RUST_DEPEND}
 		>=dev-util/bindgen-0.58.0
 	)
 	>=dev-build/meson-1.4.1
@@ -170,7 +173,7 @@ BDEPEND="
 	")
 	video_cards_intel? (
 		~dev-util/intel_clc-${PV}
-		dev-libs/libclc[spirv(-)]
+		llvm-core/libclc[spirv(-)]
 		$(python_gen_any_dep "dev-python/ply[\${PYTHON_USEDEP}]")
 	)
 	vulkan? (
@@ -178,7 +181,7 @@ BDEPEND="
 		video_cards_nvk? (
 			>=dev-util/bindgen-0.68.1
 			>=dev-util/cbindgen-0.26.0
-			>=virtual/rust-1.74.1
+			${RUST_DEPEND}
 		)
 	)
 	wayland? ( dev-util/wayland-scanner )
@@ -278,8 +281,8 @@ python_check_deps() {
 
 pkg_setup() {
 	# warning message for bug 459306
-	if use llvm && has_version sys-devel/llvm[!debug=]; then
-		ewarn "Mismatch between debug USE flags in media-libs/mesa and sys-devel/llvm"
+	if use llvm && has_version llvm-core/llvm[!debug=]; then
+		ewarn "Mismatch between debug USE flags in media-libs/mesa and llvm-core/llvm"
 		ewarn "detected! This can cause problems. For details, see bug 459306."
 	fi
 
@@ -299,6 +302,10 @@ pkg_setup() {
 
 	use llvm && llvm-r1_pkg_setup
 	python-any-r1_pkg_setup
+
+	if use opencl || (use vulkan && use video_cards_nvk); then
+		rust_pkg_setup
+	fi
 }
 
 src_prepare() {
@@ -417,17 +424,14 @@ multilib_src_configure() {
 				)
 			fi
 		fi
+
+		emesonargs+=(-Dvulkan-layers=device-select,overlay)
 	fi
 
 	driver_list() {
 		local drivers="$(sort -u <<< "${1// /$'\n'}")"
 		echo "${drivers//$'\n'/,}"
 	}
-
-	local vulkan_layers
-	use vulkan && vulkan_layers+="device-select"
-	use vulkan-overlay && vulkan_layers+=",overlay"
-	emesonargs+=(-Dvulkan-layers=${vulkan_layers#,})
 
 	if use opengl && use X; then
 		emesonargs+=(-Dglx=dri)
@@ -444,7 +448,6 @@ multilib_src_configure() {
 	emesonargs+=(
 		$(meson_use test build-tests)
 		-Dshared-glapi=enabled
-		-Ddri3=enabled
 		-Dexpat=enabled
 		$(meson_use opengl)
 		$(meson_feature opengl gbm)
@@ -470,6 +473,15 @@ multilib_src_configure() {
 
 	if ! multilib_is_native_abi && use video_cards_nvk; then
 		sed -i -E '{N; s/(rule rust_COMPILER_FOR_BUILD\n command = rustc) --target=[a-zA-Z0-9=:-]+ (.*) -C link-arg=-m[[:digit:]]+/\1 \2/g}' build.ninja || die
+	fi
+}
+
+multilib_src_compile() {
+	if [[ ${ABI} == x86 ]]; then
+		# Bug 939803
+		BINDGEN_EXTRA_CLANG_ARGS="-m32" meson_src_compile
+	else
+		meson_src_compile
 	fi
 }
 
