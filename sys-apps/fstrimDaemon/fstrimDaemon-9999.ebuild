@@ -1,7 +1,7 @@
-# Copyright 1999-2017 Gentoo Foundation
+# Copyright 1999-2025 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
 
-EAPI=6
+EAPI=8
 
 inherit systemd
 
@@ -23,14 +23,9 @@ IUSE=""
 RDEPEND="sys-apps/util-linux"
 DEPEND="${RDEPEND}"
 
-src_prepare() {
-	epatch "${FILESDIR}/${PN}-1.1.1-fixes.patch"
-	eapply_user
-}
-
-src_compile() {
-	:
-}
+PATCHES=(
+    "${FILESDIR}/${PN}-1.1.1-fixes.patch"
+)
 
 src_install() {
 	dosbin usr/sbin/fstrimDaemon.sh

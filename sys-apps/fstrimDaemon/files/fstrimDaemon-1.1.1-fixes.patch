@@ -1,7 +1,7 @@
 diff --git etc/conf.d/fstrimDaemon etc/conf.d/fstrimDaemon
 index 7707d37..c1b61ff 100644
---- etc/conf.d/fstrimDaemon
-+++ etc/conf.d/fstrimDaemon
+--- /etc/conf.d/fstrimDaemon
++++ /etc/conf.d/fstrimDaemon
 @@ -33,7 +33,7 @@ IONICE="3"
  PID="/var/run/fstrimDaemon.pid"
  
@@ -13,8 +13,8 @@ index 7707d37..c1b61ff 100644
  DAEMON="/usr/sbin/fstrimDaemon.sh"
 diff --git etc/init.d/fstrimDaemon etc/init.d/fstrimDaemon
 index ce7c022..6b0fffc 100755
---- etc/init.d/fstrimDaemon
-+++ etc/init.d/fstrimDaemon
+--- /etc/init.d/fstrimDaemon
++++ /etc/init.d/fstrimDaemon
 @@ -1,4 +1,4 @@
 -#!/sbin/runscript
 +#!/sbin/openrc-run
