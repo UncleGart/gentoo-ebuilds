@@ -1,6 +1,6 @@
 --- a/tools/features/debug-feature.jam
 +++ b/tools/features/debug-feature.jam
-@@ -18,7 +18,7 @@
+@@ -18,7 +18,7 @@ common usage is to build release variant with debugging information.
  |# # end::doc[]
  
  feature.feature debug-symbols
@@ -11,12 +11,12 @@
  #| tag::prof-doc[]
 --- a/tools/features/optimization-feature.jam
 +++ b/tools/features/optimization-feature.jam
-@@ -16,7 +16,7 @@
+@@ -16,7 +16,7 @@ smaller binary.
  |# # end::doc[]
  
  feature.feature optimization
--    : off speed space
-+    : off none speed space
+-    : off speed space minimal debug
++    : off none speed space minimal debug
      : propagated ;
  
  #| tag::inline-doc[]
