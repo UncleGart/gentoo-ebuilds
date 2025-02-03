@@ -1,9 +1,9 @@
-# Copyright 1999-2020 Gentoo Authors
+# Copyright 1999-2025 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
-EAPI=7
+EAPI=8
 
-PYTHON_COMPAT=( python3_{8..12} )
+PYTHON_COMPAT=( python3_{8..13} )
 DISTUTILS_USE_SETUPTOOLS="no"
 
 inherit distutils-r1 gnome2-utils
@@ -63,10 +63,12 @@ pkg_postinst() {
 	gnome2_icon_cache_update
 	gnome2_schemas_update
 	xdg_desktop_database_update
+	xdg_icon_cache_update
 }
 
 pkg_postrm() {
 	gnome2_icon_cache_update
 	gnome2_schemas_update
 	xdg_desktop_database_update
+	xdg_icon_cache_update
 }
