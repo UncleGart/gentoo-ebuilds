@@ -1,38 +1,24 @@
-# Copyright 2000-2023 Gentoo Authors
+# Copyright 2000-2025 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
+COMMIT=ac807d2c8574c292a34c51e000c1554f372aa618
 LUA_COMPAT=( lua5-{1..2} )
-
-MY_PV="${PV/_/-}"
-MY_PV="${MY_PV/-beta/-test}"
-MY_P="${PN}-${MY_PV}"
-if [[ ${PV} = *9999 ]] ; then
-	if [[ ${PV%.9999} != ${PV} ]] ; then
-		EGIT_BRANCH="3.0.x"
-	fi
-	EGIT_REPO_URI="https://code.videolan.org/videolan/vlc.git"
-	inherit git-r3
-else
-	if [[ ${MY_P} = ${P} ]] ; then
-		SRC_URI="https://download.videolan.org/pub/videolan/${PN}/${PV}/${P}.tar.xz"
-	else
-		SRC_URI="https://download.videolan.org/pub/videolan/testing/${MY_P}/${MY_P}.tar.xz"
-	fi
-	KEYWORDS="amd64 ~arm arm64 ~loong ppc ppc64 ~riscv -sparc x86"
-fi
 inherit autotools flag-o-matic lua-single toolchain-funcs virtualx xdg
 
 DESCRIPTION="Media player and framework with support for most multimedia files and streaming"
 HOMEPAGE="https://www.videolan.org/vlc/"
+SRC_URI="https://code.videolan.org/videolan/${PN}/-/archive/${COMMIT}/${PN}-${COMMIT}.tar.bz2 -> ${P}.tar.bz2"
+S="${WORKDIR}/${PN}-${COMMIT}"
 
 LICENSE="LGPL-2.1 GPL-2"
 SLOT="0/5-9" # vlc - vlccore
+KEYWORDS="amd64 ~arm arm64 ~loong ppc ppc64 ~riscv -sparc x86"
 
 IUSE="a52 alsa aom archive aribsub bidi bluray cddb chromaprint chromecast dav1d dbus
 	dc1394 debug directx dts +dvbpsi dvd +encode faad fdk +ffmpeg flac fluidsynth
-	fontconfig +gcrypt gme gnome-keyring gstreamer +gui ieee1394 jack jpeg kate
+	fontconfig +gcrypt gme keyring gstreamer +gui ieee1394 jack jpeg kate
 	libass libcaca libnotify +libsamplerate libtar libtiger linsys lirc live lua
 	macosx-notifications mad matroska modplug mp3 mpeg mtp musepack ncurses nfs ogg
 	omxil optimisememory opus png projectm pulseaudio rdp run-as-root samba sdl-image
@@ -48,23 +34,27 @@ REQUIRED_USE="
 	libtar? ( skins )
 	libtiger? ( kate )
 	lua? ( ${LUA_REQUIRED_USE} )
-	skins? ( gui truetype X xml )
+	skins? ( archive gui truetype X xml )
 	ssl? ( gcrypt )
 	vaapi? ( ffmpeg X )
 	vdpau? ( ffmpeg X )
 "
+# snapshots need bison+flex
 BDEPEND="
+	sys-devel/bison
+	sys-devel/flex
 	>=sys-devel/gettext-0.19.8
 	virtual/pkgconfig
 	lua? ( ${LUA_DEPS} )
 	amd64? ( dev-lang/yasm )
+	wayland? ( dev-util/wayland-scanner )
 	x86? ( dev-lang/yasm )
 "
-# <ffmpeg-5 dep for USE="ffmpeg vaapi" for bug #864721
+# <media-plugins/live-2024.11.28: https://github.com/gentoo/gentoo/pull/40610#issuecomment-2664870395
 RDEPEND="
 	media-libs/libvorbis
 	net-dns/libidn:=
-	sys-libs/zlib[minizip]
+	sys-libs/zlib
 	virtual/libintl
 	virtual/opengl
 	a52? ( media-libs/a52dec )
@@ -111,7 +101,7 @@ RDEPEND="
 		dev-libs/libgpg-error
 	)
 	gme? ( media-libs/game-music-emu )
-	gnome-keyring? ( app-crypt/libsecret )
+	keyring? ( app-crypt/libsecret )
 	gstreamer? ( >=media-libs/gst-plugins-base-1.4.5:1.0 )
 	gui? (
 		dev-qt/qtcore:5
@@ -146,7 +136,7 @@ RDEPEND="
 	libtiger? ( media-libs/libtiger )
 	linsys? ( media-libs/zvbi )
 	lirc? ( app-misc/lirc )
-	live? ( media-plugins/live:= )
+	live? ( <media-plugins/live-2024.11.28:= )
 	lua? ( ${LUA_DEPS} )
 	mad? ( media-libs/libmad )
 	matroska? (
@@ -154,7 +144,7 @@ RDEPEND="
 		media-libs/libmatroska:=
 	)
 	modplug? ( >=media-libs/libmodplug-0.8.9.0 )
-	mp3? ( media-sound/mpg123 )
+	mp3? ( media-sound/mpg123-base )
 	mpeg? ( media-libs/libmpeg2 )
 	mtp? ( media-libs/libmtp:= )
 	musepack? ( media-sound/musepack-tools )
@@ -167,8 +157,8 @@ RDEPEND="
 		media-fonts/dejavu
 		>=media-libs/libprojectm-3.1.12:0=
 	)
-	pulseaudio? ( media-sound/pulseaudio )
-	rdp? ( >=net-misc/freerdp-2.0.0_rc0:=[client(+)] )
+	pulseaudio? ( media-libs/libpulse )
+	rdp? ( >=net-misc/freerdp-2.0.0_rc0:2= )
 	samba? ( >=net-fs/samba-4.0.0:0[client,-debug(-)] )
 	sdl-image? ( media-libs/sdl-image )
 	sftp? ( net-libs/libssh2 )
@@ -190,7 +180,7 @@ RDEPEND="
 		gnome-base/librsvg:2
 		x11-libs/cairo
 	)
-	taglib? ( >=media-libs/taglib-1.9 )
+	taglib? ( media-libs/taglib:= )
 	theora? ( media-libs/libtheora )
 	tremor? ( media-libs/tremor )
 	truetype? (
@@ -202,10 +192,7 @@ RDEPEND="
 	udev? ( virtual/udev )
 	upnp? ( net-libs/libupnp:=[ipv6(+)] )
 	v4l? ( media-libs/libv4l:= )
-	vaapi? (
-		<media-video/ffmpeg-5
-		media-libs/libva:=[drm(+),wayland?,X?]
-	)
+	vaapi? ( media-libs/libva:=[drm(+),wayland?,X?] )
 	vdpau? ( x11-libs/libvdpau )
 	vnc? ( net-libs/libvncserver )
 	vpx? ( media-libs/libvpx:= )
@@ -231,15 +218,14 @@ DEPEND="${RDEPEND}
 
 PATCHES=(
 	"${FILESDIR}"/${PN}-2.1.0-fix-libtremor-libs.patch # build system
-	"${FILESDIR}"/${PN}-2.2.8-freerdp-2.patch # bug 590164
 	"${FILESDIR}"/${PN}-3.0.6-fdk-aac-2.0.0.patch # bug 672290
 	"${FILESDIR}"/${PN}-3.0.11.1-configure_lua_version.patch
 	"${FILESDIR}"/${PN}-3.0.18-futex-x32.patch
+	"${FILESDIR}"/${PN}-3.0.18-drop-minizip-dep.patch
+	"${FILESDIR}"/${PN}-3.0.21-freerdp-2.patch # bug 919296, 590164
 )
 
 DOCS=( AUTHORS THANKS NEWS README doc/fortunes.txt )
-
-S="${WORKDIR}/${MY_P}"
 
 pkg_setup() {
 	if use lua; then
@@ -257,7 +243,7 @@ src_prepare() {
 		eapply "${FILESDIR}"/${PN}-2.2.8-libupnp-slot-1.8.patch
 
 	# Bootstrap when we are on a git checkout.
-	if [[ ${PV} = *9999 ]] ; then
+	if [[ ${PV} == *9999* || ${PV} == *_p[0-9]* ]] ; then
 		./bootstrap
 	fi
 
@@ -286,10 +272,14 @@ src_prepare() {
 }
 
 src_configure() {
+	# snapshots need bison+flex
+	unset LEX YACC
+
 	local -x BUILDCC="$(tc-getBUILD_CC)"
 
 	local myeconfargs=(
 		--disable-aa
+		--disable-amf-frc # DirectX specific
 		--disable-optimizations
 		--disable-rpath
 		--disable-update-check
@@ -339,7 +329,7 @@ src_configure() {
 		$(use_enable fontconfig)
 		$(use_enable gcrypt libgcrypt)
 		$(use_enable gme)
-		$(use_enable gnome-keyring secret)
+		$(use_enable keyring secret)
 		$(use_enable gstreamer gst-decode)
 		$(use_enable gui qt)
 		$(use_enable ieee1394 dv1394)
@@ -439,20 +429,18 @@ src_configure() {
 	)
 	# ^ We don't have these disabled libraries in the Portage tree yet.
 
+	# https://code.videolan.org/videolan/vlc/-/issues/17626 (bug #861143)
+	append-flags -fno-strict-aliasing
+	filter-lto
+
 	# Compatibility fix for Samba 4.
-	use samba && append-cppflags "-I/usr/include/samba-4.0"
+	use samba && append-cppflags "-I${ESYSROOT}/usr/include/samba-4.0"
 
 	if use x86; then
 		# We need to disable -fstack-check if use >=gcc 4.8.0. bug #499996
 		append-cflags $(test-flags-CC -fno-stack-check)
 		# Bug 569774
 		replace-flags -Os -O2
-	fi
-
-	if use omxil; then
-		# bug #723006
-		# https://trac.videolan.org/vlc/ticket/24617
-		append-cflags -fcommon
 	fi
 
 	# FIXME: Needs libresid-builder from libsidplay:2 which is in another directory...
