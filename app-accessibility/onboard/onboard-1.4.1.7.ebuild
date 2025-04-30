@@ -3,8 +3,9 @@
 
 EAPI=8
 
+DISTUTILS_EXT=1
+DISTUTILS_USE_PEP517=setuptools
 PYTHON_COMPAT=( python3_{8..13} )
-DISTUTILS_USE_SETUPTOOLS="no"
 
 inherit distutils-r1 gnome2-utils
 
@@ -44,6 +45,8 @@ RDEPEND="${COMMON_DEPEND}
 	x11-libs/libxkbfile"
 
 RESTRICT="mirror"
+
+distutils_enable_tests pytest
 
 src_prepare() {
 	distutils-r1_src_prepare
