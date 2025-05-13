@@ -62,7 +62,7 @@ multilib_src_configure() {
 
 		python_foreach_impl setup_python_flags_configure
 	else
-		local BUILD_DIR="${WORKDIR}"/build
+		# Configure with multilib support
 		run_in_build_dir econf "${pythonconf[@]}" "${myconf[@]}"
 	fi
 }
@@ -71,7 +71,7 @@ multilib_src_compile() {
 	if use python ; then
 		python_foreach_impl run_in_build_dir emake
 	else
-		local BUILD_DIR="${WORKDIR}"/build
+		# Compile with multilib support
 		emake -C "${BUILD_DIR}"
 	fi
 }
@@ -85,7 +85,7 @@ multilib_src_test() {
 	if use python ; then
 		python_foreach_impl run_in_build_dir emake check
 	else
-		local BUILD_DIR="${WORKDIR}"/build
+		# Test with multilib support
 		emake -C "${BUILD_DIR}" check
 	fi
 }
@@ -94,9 +94,10 @@ multilib_src_install() {
 	if use python ; then
 		python_foreach_impl run_in_build_dir emake DESTDIR="${D}" install
 	else
-		local BUILD_DIR="${WORKDIR}"/build
+		# Install with multilib support
 		emake -C "${BUILD_DIR}" DESTDIR="${D}" install
 	fi
 
 	find "${ED}" -name '*.la' -delete || die
+	default
 }
