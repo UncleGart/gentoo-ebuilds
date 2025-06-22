@@ -1,9 +1,8 @@
-# Copyright 1999-2024 Gentoo Authors
+# Copyright 1999-2025 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-#CMAKE_MAKEFILE_GENERATOR ?= ninja
 CMAKE_MAKEFILE_GENERATOR=emake
 CMAKE_IN_SOURCE_BUILD=1
 CMAKE_BUILD_TYPE=Release
@@ -35,10 +34,6 @@ DEPEND="
 	samba? ( net-fs/samba )
 "
 RDEPEND="${DEPEND}"
-
-PATCHES=(
-	"${FILESDIR}"/${PN}-2.6.3-time_t.patch
-)
 
 src_configure() {
 	#FIXME: more options:
