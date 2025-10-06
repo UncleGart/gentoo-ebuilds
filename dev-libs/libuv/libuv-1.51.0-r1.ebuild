@@ -1,6 +1,8 @@
 # Copyright 1999-2025 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
+# Added multilib support
+
 EAPI=8
 
 VERIFY_SIG_OPENPGP_KEY_PATH=/usr/share/openpgp-keys/libuv.asc
@@ -17,7 +19,7 @@ else
 		https://dist.libuv.org/dist/v${PV}/libuv-v${PV}.tar.gz -> ${P}.tar.gz
 		verify-sig? ( https://dist.libuv.org/dist/v${PV}/libuv-v${PV}.tar.gz.sign -> ${P}.tar.gz.sig )
 	"
-	KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+	KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
 	S="${WORKDIR}/${PN}-v${PV}"
 fi
 
@@ -32,6 +34,7 @@ BDEPEND="
 
 PATCHES=(
 	"${FILESDIR}"/${PN}-1.48.0-test-thread-priority-portage.patch
+	"${FILESDIR}"/${PN}-1.51.0-ppc32-uring.patch
 )
 
 src_prepare() {
@@ -45,7 +48,7 @@ src_prepare() {
 	echo "m4_define([UV_EXTRA_AUTOMAKE_FLAGS], [serial-tests])" \
 		> m4/libuv-extra-automake-flags.m4 || die
 	eautoreconf
-    multilib_copy_sources
+	multilib_copy_sources
 }
 
 multilib_src_configure() {
