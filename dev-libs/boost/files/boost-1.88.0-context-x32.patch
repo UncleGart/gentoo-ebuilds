@@ -1,0 +1,13 @@
+--- a/libs/context/build/architecture.jam	2025-04-03 07:37:24.000000000 -0400
++++ b/libs/context/build/architecture.jam	2025-09-07 23:30:52.492854416 -0400
+@@ -30,6 +30,10 @@
+         {
+             return <address-model>32 ;
+         }
++        else if [ configure.builds /boost/architecture//32_64 : $(properties) : "64-bit x32" ]
++        {
++            return <address-model>32_64 ;
++        }
+         else if [ configure.builds /boost/architecture//64 : $(properties) : 64-bit ]
+         {
+             return <address-model>64 ;

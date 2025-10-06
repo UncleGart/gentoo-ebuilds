@@ -1,0 +1,22 @@
+--- a/libs/context/build/Jamfile.v2	2025-04-03 07:37:24.000000000 -0400
++++ b/libs/context/build/Jamfile.v2	2024-08-07 18:07:35.000000000 -0400
+@@ -41,13 +48,12 @@
+       <toolset>msvc,<address-model>32:<asmflags>/safeseh
+     : usage-requirements
+       <link>shared:<define>BOOST_CONTEXT_DYN_LINK=1
+-      <define>BOOST_CONTEXT_NO_LIB=1
+       <optimization>speed:<define>BOOST_DISABLE_ASSERTS
+       <variant>release:<define>BOOST_DISABLE_ASSERTS
+     : source-location ../src
+     ;
+ 
+ 
+ # ARM
+ # ARM/AAPCS/ELF
+ alias asm_sources
+@@ -978,3 +997,5 @@
+    : impl_sources
+      stack_traits_sources
+    ;
++
++boost-install boost_context ;

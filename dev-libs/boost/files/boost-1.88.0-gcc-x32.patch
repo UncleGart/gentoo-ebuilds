@@ -1,0 +1,18 @@
+--- a/tools/build/src/tools/gcc.jam	2025-04-03 07:37:31.000000000 -0400
++++ b/tools/build/src/tools/gcc.jam	2025-09-12 00:18:10.781959511 -0400
+@@ -285,6 +285,7 @@
+         if [ MATCH "^(i.86|x86|powerpc|ppc|sparc)" : $(machine:L) ]
+         {
+             compile-link-flags $(condition)/<architecture>/<address-model>32 : -m32 ;
++            compile-link-flags $(condition)/<architecture>/<address-model>32_64 : -mx32 ;
+             compile-link-flags $(condition)/<architecture>/<address-model>64 : -m64 ;
+         }
+         if [ MATCH "^(s390)" : $(machine:L) ]
+@@ -390,6 +391,7 @@
+     compile-link-flags <target-os>$(generic-os)/<architecture>s390x/<address-model>64 : -m64 ;
+     local arch = power sparc x86 ;
+     compile-link-flags <target-os>$(generic-os)/<architecture>$(arch)/<address-model>32 : -m32 ;
++    compile-link-flags <target-os>$(generic-os)/<architecture>$(arch)/<address-model>32_64 : -mx32 ;
+     compile-link-flags <target-os>$(generic-os)/<architecture>$(arch)/<address-model>64 : -m64 ;
+ }
+ 
