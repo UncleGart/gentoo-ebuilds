@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+  <!-- maintainer-needed -->
+  <upstream>
+    <maintainer status="inactive">
+      <email>jonathan@rouleau.io</email>
+      <name>Jonathan Rouleau</name>
+    </maintainer>
+    <doc lang="en">https://github.com/jrouleau/cmdline</doc>
+  </upstream>
+  <longdescription lang="en">
+    A script that reads /etc/cmdline first and then any files in /etc/cmdline.d/ 
+    removing any comments or empty lines and concatenates them into a single line string.
+  </longdescription>
+</pkgmetadata>
