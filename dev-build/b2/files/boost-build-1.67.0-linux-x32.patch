@@ -9,10 +9,16 @@
          if $(.debug-configuration)
          {
              ECHO "notice:" using gcc libraries "::" $(condition) "::" $(lib_path) ;
-@@ -360,6 +360,7 @@
-     local generic-os = [ set.difference $(all-os) : aix hpux ] ;
+@@ -285,6 +285,1 @@
+-        if [ MATCH "^(i.86|x86|powerpc|ppc|sparc)" : $(machine:L) ]
+-        {
+-            compile-link-flags $(condition)/<architecture>/<address-model>32 : -m32 ;
+-            compile-link-flags $(condition)/<architecture>/<address-model>64 : -m64 ;
+-        }
+         if [ MATCH "^(s390)" : $(machine:L) ]
+@@ -390,5 +391,2 @@
+-    compile-link-flags <target-os>$(generic-os)/<architecture>s390x/<address-model>64 : -m64 ;
      local arch = power sparc x86 ;
-     compile-link-flags <target-os>$(generic-os)/<architecture>$(arch)/<address-model>32 : -m32 ;
-+    compile-link-flags <target-os>linux/<architecture>x86/<address-model>32_64 : -mx32 ;
-     compile-link-flags <target-os>$(generic-os)/<architecture>$(arch)/<address-model>64 : -m64 ;
+-    compile-link-flags <target-os>$(generic-os)/<architecture>$(arch)/<address-model>32 : -m32 ;
+-    compile-link-flags <target-os>$(generic-os)/<architecture>$(arch)/<address-model>64 : -m64 ;
  }

@@ -1,5 +1,14 @@
 --- a/tools/build/src/tools/gcc.jam	2025-04-03 07:37:31.000000000 -0400
 +++ b/tools/build/src/tools/gcc.jam	2025-09-12 00:18:10.781959511 -0400
+@@ -223,7 +223,7 @@
+         # right onces. Note that we do not provide a clean way to build a 32-bit
+         # binary using a 64-bit compiler, but user can always pass -m32
+         # manually.
+-        local lib_path = $(root)/bin $(root)/lib $(root)/lib32 $(root)/lib64 ;
++        local lib_path = $(root)/bin $(root)/lib $(root)/lib32 $(root)/libx32 $(root)/lib64 ;
+         if $(.debug-configuration)
+         {
+             ECHO "notice:" using gcc libraries "::" $(condition) "::" $(lib_path) ;
 @@ -285,6 +285,7 @@
          if [ MATCH "^(i.86|x86|powerpc|ppc|sparc)" : $(machine:L) ]
          {

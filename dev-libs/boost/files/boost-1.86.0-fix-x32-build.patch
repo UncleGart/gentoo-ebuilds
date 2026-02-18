@@ -5,10 +5,10 @@
      local filtered = [ toolset-properties $(properties) ] ;
 
 -    local names = 32 64 ;
-+    local names = 32 32_64 64 ;
++    local names = 32_64 32 64 ;
      local idx = [ configure.find-builds "default address-model" : $(filtered)
++        : /boost/architecture//32_64 "32-bit"
          : /boost/architecture//32 "32-bit"
-+        : /boost/architecture//32_64 "64-bit x32"
          : /boost/architecture//64 "64-bit" ] ;
      local deduced-am = $(names[$(idx)]) ;
      if ! $(deduced-am)

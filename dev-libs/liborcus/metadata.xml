@@ -5,8 +5,14 @@
 		<email>office@gentoo.org</email>
 		<name>Gentoo Office project</name>
 	</maintainer>
+	<slots>
+		<subslots>liborcus soname version</subslots>
+	</slots>
+	<use>
+		<flag name="spreadsheet-model">Enable the spreadsheet model implementation</flag>
+		<flag name="tools">Build various low-level parsers</flag>
+	</use>
 	<upstream>
-		<remote-id type="google-code">multidimalgorithm</remote-id>
-		<remote-id type="gitlab">mdds/mdds</remote-id>
+		<remote-id type="gitlab">orcus/orcus</remote-id>
 	</upstream>
 </pkgmetadata>

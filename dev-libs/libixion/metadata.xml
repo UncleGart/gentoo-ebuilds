@@ -5,8 +5,10 @@
 		<email>office@gentoo.org</email>
 		<name>Gentoo Office project</name>
 	</maintainer>
+	<slots>
+		<subslots>libixion soname version</subslots>
+	</slots>
 	<upstream>
-		<remote-id type="google-code">multidimalgorithm</remote-id>
-		<remote-id type="gitlab">mdds/mdds</remote-id>
+		<remote-id type="gitlab">ixion/ixion</remote-id>
 	</upstream>
 </pkgmetadata>
