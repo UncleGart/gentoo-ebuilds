@@ -23,7 +23,10 @@ SLOT="0"
 IUSE="+git wayland X emacs dmenu importers"
 
 RDEPEND="
-	app-crypt/gnupg
+	|| (
+		app-alternatives/gpg[reference]
+		app-alternatives/gpg[freepg(-)]
+	)
 	media-gfx/qrencode
 	>=app-text/tree-1.7.0
 	git? ( dev-vcs/git )
