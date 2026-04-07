@@ -1,11 +1,12 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
-# This ebuild is taken from pg_overlay with the addition of x32 ABI patches
+# This ebuild has been taken from pg_overlay with the addition of x32 ABI patches.
+# One of unconditional dependencies is system-level Abseil library.
 
 EAPI=8
 
-PYTHON_COMPAT=( python3_{11..13} )
+PYTHON_COMPAT=( python3_{13..14} )
 PYTHON_REQ_USE="threads(+),xml(+)"
 
 MY_PV="${PV/_alpha/.alpha}"
@@ -14,8 +15,8 @@ MY_PV="${MY_PV/_beta/.beta}"
 # Usually the tarballs are moved a lot so this should make everyone happy.
 DEV_URI="
 	https://dev-builds.libreoffice.org/pre-releases/src
-	https://download.documentfoundation.org/libreoffice/src/${MY_PV:0:5}/
-	https://downloadarchive.documentfoundation.org/libreoffice/old/${MY_PV}/src
+#	https://download.documentfoundation.org/libreoffice/src/${MY_PV:0:5}/
+#	https://downloadarchive.documentfoundation.org/libreoffice/old/${MY_PV}/src
 "
 ADDONS_URI="https://dev-www.libreoffice.org/src/"
 
@@ -53,7 +54,7 @@ ADDONS_SRC=(
 	# not packaged in Gentoo, https://github.com/serge-sans-paille/frozen
 	"${ADDONS_URI}/frozen-1.2.0.tar.gz"
 	# not packaged in Gentoo, https://skia.org/
-	"${ADDONS_URI}/skia-m130-3c64459d5df2fa9794b277f0959ed8a92552bf4c.tar.xz"
+	"${ADDONS_URI}/skia-m142-f4ed99d2443962782cf5f8b4dd27179f131e7cbe.tar.xz"
 
 	"base? (
 		${ADDONS_URI}/ba2930200c9f019c2d93a8c88c651a0f-flow-engine-0.9.4.zip
@@ -87,13 +88,13 @@ LICENSE="|| ( LGPL-3 MPL-1.1 )"
 SLOT="0"
 
 [[ ${MY_PV} == *9999* ]] || \
-KEYWORDS="amd64 ~arm arm64 ~loong ppc64 ~riscv ~x86 ~amd64-linux"
+KEYWORDS="~amd64 ~arm ~arm64 ~loong ~ppc64 ~riscv ~x86 ~amd64-linux"
 
 # Extensions that need extra work:
 LO_EXTS="nlpsolver scripting-beanshell scripting-javascript wiki-publisher"
 
 IUSE="accessibility base bluetooth +branding coinmp +cups custom-cflags +dbus debug eds
-googledrive gstreamer +gtk3 gtk4 kde ldap +mariadb odk pdfimport postgres qt6 system-abseil test valgrind vulkan
+googledrive gstreamer gtk kde ldap +mariadb odk pdfimport postgres qt6 test valgrind vulkan
 $(printf 'libreoffice_extensions_%s ' ${LO_EXTS})"
 
 REQUIRED_USE="${PYTHON_REQUIRED_USE}
@@ -130,7 +131,9 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	app-text/libwpg:0.3
 	>=app-text/libwps-0.4
 	app-text/mythes
-	>=dev-cpp/clucene-2.3.3.4-r2
+	dev-cpp/abseil-cpp:=
+	>=dev-cpp/clucene-2.3.3
+	dev-cpp/fast_float
 	>=dev-cpp/libcmis-0.6.2:0=
 	dev-db/unixODBC
 	dev-lang/perl
@@ -140,7 +143,7 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	dev-libs/icu:=
 	dev-libs/libassuan:=
 	dev-libs/libgpg-error
-	>=dev-libs/liborcus-0.18.0:0/0.18
+	>=dev-libs/liborcus-0.21.0:0/0.21
 	dev-libs/librevenge
 	dev-libs/libxml2:=
 	dev-libs/libxslt
@@ -157,7 +160,8 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	>=media-libs/harfbuzz-5.1.0:=[graphite,icu]
 	media-libs/lcms:2
 	>=media-libs/libcdr-0.1.0
-	>=media-libs/libepoxy-1.3.1[X]
+	media-libs/libeot
+	>=media-libs/libepoxy-1.3.1
 	>=media-libs/libfreehand-0.1.0
 	media-libs/libjpeg-turbo:=
 	media-libs/libpagemaker
@@ -167,12 +171,12 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	media-libs/libzmf
 	media-libs/openjpeg:=
 	media-libs/tiff:=
-	>=media-libs/zxing-cpp-2.3.0:=
+	media-libs/zxing-cpp:=
 	net-misc/curl
 	sci-mathematics/lpsolve:=
-	virtual/zlib:=
+	virtual/zlib
 	virtual/opengl
-	x11-libs/cairo[X]
+	x11-libs/cairo
 	x11-libs/libXinerama
 	x11-libs/libXrandr
 	x11-libs/libXrender
@@ -195,20 +199,11 @@ COMMON_DEPEND="${PYTHON_DEPS}
 		media-libs/gstreamer:1.0
 		media-libs/gst-plugins-base:1.0
 	)
-	gtk3? (
-		app-accessibility/at-spi2-core:2
+	gtk? (
 		dev-libs/glib:2
 		gnome-base/dconf
 		media-libs/mesa[egl(+)]
-		x11-libs/gtk+:3[wayland,X]
-		x11-libs/pango
-	)
-	gtk4? (
-		app-accessibility/at-spi2-core:2
-		dev-libs/glib:2
-		gnome-base/dconf
-		media-libs/mesa[egl(+)]
-		gui-libs/gtk:4[wayland,X]
+		gui-libs/gtk[wayland,X]
 		x11-libs/pango
 	)
 	kde? (
@@ -239,7 +234,7 @@ DEPEND="${COMMON_DEPEND}
 	dev-perl/Archive-Zip
 	>=dev-util/cppunit-1.14.0
 	>=dev-util/gperf-3.1
-	dev-util/mdds:1/2.1
+	dev-util/mdds:1/3.0
 	media-libs/glm
 	x11-base/xorg-proto
 	x11-libs/libXt
@@ -293,16 +288,6 @@ PATCHES=(
 	"${FILESDIR}/${PN}-6.1-nomancompress.patch"
 	"${FILESDIR}/${PN}-24.2-qtdetect.patch"
 	"${FILESDIR}/${PN}-25.2-cflags.patch"
-
-	# git master
-	"${FILESDIR}/${PN}-25.2-unused-qt6network.patch"
-	"${FILESDIR}/${PN}-25.2.4.3-gcc16.patch"
-	"${FILESDIR}/${PN}-25.2.6.2-poppler-25.09.patch"
-	"${FILESDIR}/${PN}-25.2.7.2-poppler-25.10.patch"
-
-	# add qt6 backend as possible fallback for gtk-based desktop environments:
-	# https://bugs.gentoo.org/950170
-	"${FILESDIR}/${PN}-25.2-vcl-backend-fallback.patch"
 	# x32 ABI
 	"${FILESDIR}/${PN}-x32-configure.patch"
 	"${FILESDIR}/${PN}-7.3-x32-cpp_uno_bridge.patch"	
@@ -482,9 +467,6 @@ src_configure() {
 	export PYTHON_CFLAGS=$(python_get_CFLAGS)
 	export PYTHON_LIBS=$(python_get_LIBS)
 
-	# doesn't respect CPPFLAGS
-	append-flags "-I${ESYSROOT}/usr/include/zxcvbn"
-
 	if use qt6; then
 		export QT6DIR="$(qt6_get_bindir)/.."
 	fi
@@ -506,6 +488,7 @@ src_configure() {
 	# --without-system-sane: just sane.h header that is used for scan in writer,
 	#   not linked or anything else, worthless to depend on
 	# --disable-pdfium: not yet packaged
+	# --disable-qt6-multimedia: TODO
 	# --disable-cpdb: not yet packaged
 	local myeconfargs=(
 		--with-system-dicts
@@ -515,6 +498,7 @@ src_configure() {
 		--with-system-libs
 		--enable-build-opensymbol
 		--enable-cairo-canvas
+		--enable-gui
 		--enable-largefile
 		--enable-mergelibs=more
 		--enable-python=system
@@ -523,11 +507,11 @@ src_configure() {
 		--disable-atspi-tests # bug 933257
 		--disable-breakpad
 		--disable-bundle-mariadb
-		--disable-ccache
 		--disable-cpdb
 		--disable-epm
 		--disable-fetch-external
 		--disable-firebird-sdbc
+		--disable-gtk3
 		--disable-gtk3-kde5
 		# Covered by our own toolchain defaults
 		--disable-hardening-flags
@@ -546,10 +530,10 @@ src_configure() {
 		--with-external-tar="${DISTDIR}"
 		--with-lang=""
 		--with-parallelism=$(makeopts_jobs)
+		--with-system-abseil
 		--with-system-openjpeg
 		--with-tls=nss
 		--with-vendor="Gentoo Foundation"
-		--with-x
 		--without-fonts
 		--without-myspell-dicts
 		--with-help="html"
@@ -558,6 +542,7 @@ src_configure() {
 		--with-system-zxcvbn
 		--without-system-dragonbox
 		--without-system-frozen
+		--without-system-java-websocket
 		--without-system-jfreereport
 		--without-system-libfixmath
 		--without-system-sane
@@ -570,8 +555,7 @@ src_configure() {
 		$(use_enable debug)
 		$(use_enable eds evolution2)
 		$(use_enable gstreamer gstreamer-1-0)
-		$(use_enable gtk3)
-		$(use_enable gtk4)
+		$(use_enable gtk gtk4)
 		$(use_enable kde kf6)
 		$(use_enable ldap)
 		$(use_enable odk)
@@ -586,11 +570,11 @@ src_configure() {
 		$(use_with googledrive gdrive-client-secret ${google_default_client_secret})
 		$(use_with java)
 		$(use_with odk doxygen)
-		$(use_with system-abseil)
 		$(use_with valgrind)
+		--enable-skia-vulkan-validation
 	)
 
-	if use eds || use gtk3 || use gtk4 ; then
+	if use eds || use gtk ; then
 		myeconfargs+=( --enable-dconf --enable-gio )
 	else
 		myeconfargs+=( --disable-dconf --disable-gio )
@@ -634,23 +618,23 @@ src_compile() {
 	addpredict /dev/ati
 	addpredict /dev/nvidiactl
 
-	emake -Onone
+	default
 }
 
 src_test() {
-	emake -Onone -k unitcheck
-	emake -Onone -k slowcheck
+	emake unitcheck
+	emake slowcheck
 }
 
 src_install() {
-	emake -Onone DESTDIR="${D}" distro-pack-install
+	emake DESTDIR="${D}" distro-pack-install
 
 	# TODO: still relevant for gtk4?
 	# bug #593514
-	if use gtk3; then
-		dosym libreoffice/program/liblibreofficekitgtk.so \
-			/usr/$(get_libdir)/liblibreofficekitgtk.so
-	fi
+	#if use gtk3; then
+	#	dosym libreoffice/program/liblibreofficekitgtk.so \
+	#		/usr/$(get_libdir)/liblibreofficekitgtk.so
+	#fi
 
 	# bash completion aliases
 	bashcomp_alias \
