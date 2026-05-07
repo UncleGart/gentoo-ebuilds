@@ -15,8 +15,8 @@ MY_PV="${MY_PV/_beta/.beta}"
 # Usually the tarballs are moved a lot so this should make everyone happy.
 DEV_URI="
 	https://dev-builds.libreoffice.org/pre-releases/src
-	https://download.documentfoundation.org/libreoffice/src/${MY_PV:0:5}/
-	https://downloadarchive.documentfoundation.org/libreoffice/old/${MY_PV}/src
+#	https://download.documentfoundation.org/libreoffice/src/${MY_PV:0:5}/
+#	https://downloadarchive.documentfoundation.org/libreoffice/old/${MY_PV}/src
 "
 ADDONS_URI="https://dev-www.libreoffice.org/src/"
 
@@ -173,8 +173,8 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	media-libs/tiff:=
 	media-libs/zxing-cpp:=
 	net-misc/curl
-	sci-mathematics/lpsolve:=
-	virtual/zlib
+	libreoffice_extensions_nlpsolver? ( sci-mathematics/lpsolve:= )
+	virtual/zlib:=
 	virtual/opengl
 	x11-libs/cairo
 	x11-libs/libXinerama
@@ -288,7 +288,6 @@ PATCHES=(
 	"${FILESDIR}/${PN}-6.1-nomancompress.patch"
 	"${FILESDIR}/${PN}-24.2-qtdetect.patch"
 	"${FILESDIR}/${PN}-25.2-cflags.patch"
-	"${FILESDIR}/${PN}-25.2.7.2-poppler-26.02.patch"
 	# x32 ABI
 	"${FILESDIR}/${PN}-x32-configure.patch"
 	"${FILESDIR}/${PN}-7.3-x32-cpp_uno_bridge.patch"	
@@ -455,6 +454,9 @@ src_configure() {
 		strip-flags
 	fi
 
+	# Workaround for bug #967047
+	tc-is-gcc && [[ $(gcc-major-version) -eq 16 ]] && append-cxxflags -fno-devirtualize-speculatively
+
 	# Show flags set at the end
 	einfo "  Used CFLAGS:    ${CFLAGS}"
 	einfo "  Used LDFLAGS:   ${LDFLAGS}"
@@ -573,6 +575,8 @@ src_configure() {
 		$(use_with odk doxygen)
 		$(use_with valgrind)
 		--enable-skia-vulkan-validation
+		--disable-lpsolve --disable-ext-nlpsolver
+
 	)
 
 	if use eds || use gtk ; then
