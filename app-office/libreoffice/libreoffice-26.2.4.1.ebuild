@@ -15,8 +15,8 @@ MY_PV="${MY_PV/_beta/.beta}"
 # Usually the tarballs are moved a lot so this should make everyone happy.
 DEV_URI="
 	https://dev-builds.libreoffice.org/pre-releases/src
-#	https://download.documentfoundation.org/libreoffice/src/${MY_PV:0:5}/
-#	https://downloadarchive.documentfoundation.org/libreoffice/old/${MY_PV}/src
+	https://download.documentfoundation.org/libreoffice/src/${MY_PV:0:5}/
+	https://downloadarchive.documentfoundation.org/libreoffice/old/${MY_PV}/src
 "
 ADDONS_URI="https://dev-www.libreoffice.org/src/"
 
@@ -88,13 +88,13 @@ LICENSE="|| ( LGPL-3 MPL-1.1 )"
 SLOT="0"
 
 [[ ${MY_PV} == *9999* ]] || \
-KEYWORDS="~amd64 ~arm ~arm64 ~loong ~ppc64 ~riscv ~x86 ~amd64-linux"
+KEYWORDS="~amd64 ~arm ~arm64 ~loong ~ppc64 ~riscv ~x86"
 
 # Extensions that need extra work:
 LO_EXTS="nlpsolver scripting-beanshell scripting-javascript wiki-publisher"
 
 IUSE="accessibility base bluetooth +branding coinmp +cups custom-cflags +dbus debug eds
-googledrive gstreamer gtk kde ldap +mariadb odk pdfimport postgres qt6 test valgrind vulkan
+googledrive gstreamer gtk kde ldap +mariadb odk pdfimport postgres qt6 system-abseil test valgrind vulkan
 $(printf 'libreoffice_extensions_%s ' ${LO_EXTS})"
 
 REQUIRED_USE="${PYTHON_REQUIRED_USE}
@@ -173,8 +173,8 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	media-libs/tiff:=
 	media-libs/zxing-cpp:=
 	net-misc/curl
-	sci-mathematics/lpsolve:=
-	virtual/zlib
+	libreoffice_extensions_nlpsolver? ( sci-mathematics/lpsolve:= )
+	virtual/zlib:=
 	virtual/opengl
 	x11-libs/cairo
 	x11-libs/libXinerama
@@ -224,6 +224,7 @@ COMMON_DEPEND="${PYTHON_DEPS}
 		dev-qt/qtbase:6[gui,opengl,widgets]
 		dev-qt/qtmultimedia:6
 	)
+	system-abseil? ( dev-cpp/abseil-cpp:= )
 "
 # FIXME: cppunit should be moved to test conditional
 #        after everything upstream is under gbuild
@@ -329,8 +330,8 @@ src_unpack() {
 		branch="master"
 		mypv=${MY_PV/.9999}
 		[[ ${mypv} != ${MY_PV} ]] && branch="${PN}-${mypv/./-}"
-		git-r3_fetch "${base_uri}/${PN}/core" "refs/heads/${branch}"
-		git-r3_checkout "${base_uri}/${PN}/core"
+		git-r3_fetch "${base_uri}/core" "refs/heads/${branch}"
+		git-r3_checkout "${base_uri}/core"
 		LOCOREGIT_VERSION=${EGIT_VERSION}
 
 		git-r3_fetch "${base_uri}/${PN}/help" "refs/heads/master"
@@ -454,6 +455,9 @@ src_configure() {
 		strip-flags
 	fi
 
+	# Workaround for bug #967047
+	tc-is-gcc && [[ $(gcc-major-version) -ge 16 ]] && append-cxxflags -fno-devirtualize-speculatively
+
 	# Show flags set at the end
 	einfo "  Used CFLAGS:    ${CFLAGS}"
 	einfo "  Used LDFLAGS:   ${LDFLAGS}"
@@ -488,7 +492,6 @@ src_configure() {
 	# --without-system-sane: just sane.h header that is used for scan in writer,
 	#   not linked or anything else, worthless to depend on
 	# --disable-pdfium: not yet packaged
-	# --disable-qt6-multimedia: TODO
 	# --disable-cpdb: not yet packaged
 	local myeconfargs=(
 		--with-system-dicts
@@ -530,7 +533,6 @@ src_configure() {
 		--with-external-tar="${DISTDIR}"
 		--with-lang=""
 		--with-parallelism=$(makeopts_jobs)
-		--with-system-abseil
 		--with-system-openjpeg
 		--with-tls=nss
 		--with-vendor="Gentoo Foundation"
@@ -570,8 +572,11 @@ src_configure() {
 		$(use_with googledrive gdrive-client-secret ${google_default_client_secret})
 		$(use_with java)
 		$(use_with odk doxygen)
+		$(use_with system-abseil)
 		$(use_with valgrind)
 		--enable-skia-vulkan-validation
+		--disable-lpsolve --disable-ext-nlpsolver
+
 	)
 
 	if use eds || use gtk ; then
