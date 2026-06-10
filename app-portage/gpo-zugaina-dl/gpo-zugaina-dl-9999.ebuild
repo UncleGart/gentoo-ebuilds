@@ -4,7 +4,7 @@
 EAPI=8
 
 DISTUTILS_USE_PEP517=setuptools
-PYTHON_COMPAT=( python3_{10..13} )
+PYTHON_COMPAT=( python3_{12..14} )
 
 if [[ ${PV} == 9999* ]]; then
 	EGIT_REPO_URI="https://github.com/fedeliallalinea/${PN}.git"

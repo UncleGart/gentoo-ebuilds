@@ -9,9 +9,11 @@ PYTHON_COMPAT=( python3_{12..14} )
 
 inherit distutils-r1 gnome2-utils
 
+MY_PV="$(ver_rs 3 -)"
 DESCRIPTION="An onscreen keyboard useful for tablet PC users and for mobility impaired users"
-HOMEPAGE="https://launchpad.net/onboard"
-SRC_URI="https://github.com/linuxdeepin/${PN}/archive/${PV}.tar.gz -> ${P}.tar.gz"
+HOMEPAGE="https://github.com/onboard-osk/${PN}"
+SRC_URI="https://github.com/onboard-osk/${PN}/releases/download/v{$MY_PV}/${PN}_$(ver_cut 1-3).orig.tar.gz -> ${P}.tar.gz"
+S="${WORKDIR}/${PN}-${MY_PV}"
 
 # po/* are licensed under BSD 3-clause
 LICENSE="GPL-3+ BSD"
@@ -55,6 +57,8 @@ src_prepare() {
 
 src_install() {
 	distutils-r1_src_install
+	rm -rf "${ED}/usr/share/doc/${PN}" || die
+	rm -rf "${ED}/usr/share/glib-2.0/schemas/gschemas.compiled" || die
 }
 
 pkg_preinst() {

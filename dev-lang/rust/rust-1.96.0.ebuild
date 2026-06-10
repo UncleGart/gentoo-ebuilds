@@ -7,8 +7,8 @@ EAPI=8
 
 # Bump notes: https://wiki.gentoo.org/wiki/Project:Rust/Rust_bump
 
-LLVM_COMPAT=( 21 )
-PYTHON_COMPAT=( python3_{11..14} )
+LLVM_COMPAT=( 22 )
+PYTHON_COMPAT=( python3_{13..14} )
 
 # Patches are kept in rust-patches.git, see its README.rst for the versioning
 # scheme.
@@ -17,16 +17,16 @@ PYTHON_COMPAT=( python3_{11..14} )
 # in the ebuild for changes that don't require a revbump.
 #
 # Uncomment this line when the ebuild needs a patchset update but no revbump.
-#RUST_PATCH_VER=${PV}-1
+# RUST_PATCH_VER=${PV}-1
 
 RUST_MAX_VER=${PV%%_*}
 RUST_PV=${PV%%_p*}
 RUST_P=${PN}-${RUST_PV}
-[[ -z ${RUST_PATCH_VER} ]] && RUST_PATCH_VER=${PV}
+[[ -z ${RUST_PATCH_VER} ]] && RUST_PATCH_VER=1.95.0
 
 if [[ ${PV} == *9999* ]]; then
 	# Update this as new `beta` releases come out.
-	RUST_MIN_VER="1.93.0"
+	RUST_MIN_VER="1.95.0"
 elif [[ ${PV} == *beta* ]]; then
 	RUST_MIN_VER="$(ver_cut 1).$(($(ver_cut 2) - 1)).0"
 else
@@ -137,7 +137,8 @@ BDEPEND="
 
 DEPEND="
 	>=app-arch/xz-utils-5.2
-	net-misc/curl:=[http2,ssl]
+	dev-db/sqlite:3
+	net-misc/curl[http2,ssl]
 	virtual/zlib:=
 	dev-libs/openssl:0=
 	system-llvm? (
@@ -188,6 +189,7 @@ QA_SONAME="
 
 QA_PRESTRIPPED="
 	usr/lib/${PN}/${SLOT}/lib/rustlib/.*/bin/rust-llvm-dwp
+	usr/lib/${PN}/${SLOT}/lib/rustlib/.*/bin/rust-objcopy
 	usr/lib/${PN}/${SLOT}/lib/rustlib/.*/lib/self-contained/crtn.o
 "
 
@@ -263,7 +265,7 @@ pkg_setup() {
 	pre_build_checks
 	python-any-r1_pkg_setup
 
-	export LIBGIT2_NO_PKG_CONFIG=1 #749381
+	#export LIBGIT2_NO_PKG_CONFIG=1 #749381
 	if tc-is-cross-compiler; then
 		export PKG_CONFIG_ALLOW_CROSS=1
 		export PKG_CONFIG_PATH="${ROOT}/usr/$(get_libdir)/pkgconfig"
@@ -334,8 +336,9 @@ src_unpack() {
 		# to ensure that all dependencies are present and up-to-date
 		mkdir "${S}/vendor" || die
 		# This also compiles the 'build helper', there's no way to avoid this.
-		${EPYTHON} "${S}"/x.py vendor -v --config="${T}"/vendor-bootstrap.toml -j$(makeopts_jobs) ||
-			die "Failed to vendor dependencies"
+		${EPYTHON} "${S}"/x.py vendor -v --config="${T}"/vendor-bootstrap.toml \
+			-j$(get_makeopts_jobs) ||
+				die "Failed to vendor dependencies"
 		# TODO: This has to be generated somehow, this is from a 1.84.x tarball I had lying around.
 		cat <<- _EOF_ > "${S}/.cargo/config.toml"
 			[source.crates-io]
@@ -355,6 +358,7 @@ src_unpack() {
 	else
 		default
 	fi
+	rm -f "${WORKDIR}/rust-patches-${RUST_PATCH_VER}/1.94.0-compiler-musl-dynamic-linking.patch"
 }
 
 src_prepare() {
@@ -381,9 +385,8 @@ src_configure() {
 
 	# Avoid bundled copies of libraries
 	export RUSTONIG_SYSTEM_LIBONIG=1
-	# Need to check if these can be optional
-	#export LIBSQLITE3_SYS_USE_PKG_CONFIG=1
-	#export LIBSSH2_SYS_USE_PKG_CONFIG=1
+	export LIBSQLITE3_SYS_USE_PKG_CONFIG=1
+	export LIBSSH2_SYS_USE_PKG_CONFIG=1
 
 	filter-lto # https://bugs.gentoo.org/862109 https://bugs.gentoo.org/866231
 
@@ -732,7 +735,8 @@ src_configure() {
 
 src_compile() {
 	# -v will show invocations, -vv "very verbose" is overkill, -vvv "very very verbose" is insane
-	RUST_BACKTRACE=1 "${EPYTHON}" ./x.py build -v --config="${S}"/bootstrap.toml -j$(makeopts_jobs) || die
+	RUST_BACKTRACE=1 "${EPYTHON}" ./x.py build -v \
+		--config="${S}"/bootstrap.toml -j$(get_makeopts_jobs) || die
 }
 
 src_test() {
@@ -740,18 +744,25 @@ src_test() {
 
 	# those are basic and codegen tests.
 	local tests=(
-		codegen
 		codegen-units
-		compile-fail
+		crashes
+		codegen-llvm
 		incremental
 		mir-opt
 		pretty
 		run-make
+		run-make-cargo
+	)
+
+	# tests for standard and core library
+	local std_tests=(
+		std
+		core
 	)
 
 	# fails if llvm is not built with ALL targets.
 	# and known to fail with system llvm sometimes.
-	use system-llvm || tests+=( assembly )
+	use system-llvm || tests+=( assembly-llvm )
 
 	# fragile/expensive/less important tests
 	# or tests that require extra builds
@@ -762,19 +773,18 @@ src_test() {
 			rustdoc-js
 			rustdoc-js-std
 			rustdoc-ui
-			run-make-fulldeps
 			ui
 			ui-fulldeps
 		)
 	fi
 
 	local i failed=()
-	einfo "rust_src_test: enabled tests ${tests[@]/#/src/test/}"
-	for i in "${tests[@]}"; do
-		local t="src/test/${i}"
+	einfo "rust_src_test: enabled tests ${tests[@]} ${std_tests[@]}"
+	for i in "tests/${tests[@]}" "library/${std_tests[@]}"; do
+		local t="${i}"
 		einfo "rust_src_test: running ${t}"
 		if ! RUST_BACKTRACE=1 "${EPYTHON}" ./x.py test -vv --config="${S}"/bootstrap.toml \
-				-j$(makeopts_jobs) --no-doc --no-fail-fast "${t}"
+				-j$(get_makeopts_jobs) --no-doc --no-fail-fast "${t}"
 		then
 				failed+=( "${t}" )
 				eerror "rust_src_test: ${t} failed"
@@ -788,7 +798,8 @@ src_test() {
 }
 
 src_install() {
-	DESTDIR="${D}" "${EPYTHON}" ./x.py install -v --config="${S}"/bootstrap.toml -j$(makeopts_jobs) || die
+	DESTDIR="${D}" "${EPYTHON}" ./x.py install -v \
+		--config="${S}"/bootstrap.toml -j$(get_makeopts_jobs) || die
 
 	docompress /usr/lib/${PN}/${SLOT}/share/man/
 
@@ -879,7 +890,8 @@ src_install() {
 	doins "${T}/provider-${PN}-${SLOT}"
 
 	if use dist; then
-		"${EPYTHON}" ./x.py dist -v --config="${S}"/bootstrap.toml -j$(makeopts_jobs) || die
+		"${EPYTHON}" ./x.py dist -v --config="${S}"/bootstrap.toml \
+			-j$(get_makeopts_jobs) || die
 		insinto "/usr/lib/${PN}/${SLOT}/dist"
 		doins -r "${S}/build/dist/."
 	fi
