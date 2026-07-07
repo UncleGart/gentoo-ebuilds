@@ -14,9 +14,9 @@ MY_PV="${MY_PV/_beta/.beta}"
 # experimental ; release ; old
 # Usually the tarballs are moved a lot so this should make everyone happy.
 DEV_URI="
-	https://dev-builds.libreoffice.org/pre-releases/src
-	https://download.documentfoundation.org/libreoffice/src/${MY_PV:0:5}/
+	https://download.documentfoundation.org/libreoffice/src/${MY_PV:0:5}
 	https://downloadarchive.documentfoundation.org/libreoffice/old/${MY_PV}/src
+	https://dev-builds.libreoffice.org/pre-releases/src
 "
 ADDONS_URI="https://dev-www.libreoffice.org/src/"
 
@@ -289,6 +289,7 @@ PATCHES=(
 	"${FILESDIR}/${PN}-6.1-nomancompress.patch"
 	"${FILESDIR}/${PN}-24.2-qtdetect.patch"
 	"${FILESDIR}/${PN}-25.2-cflags.patch"
+	#"${FILESDIR}/${PN}-26.2.4.2-poppler-26.06.0.patch"
 	# x32 ABI
 	"${FILESDIR}/${PN}-x32-configure.patch"
 	"${FILESDIR}/${PN}-7.3-x32-cpp_uno_bridge.patch"	

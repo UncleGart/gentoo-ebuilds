@@ -1,11 +1,13 @@
-# Copyright 2020-2024 Gentoo Authors
+# Copyright 2020-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
 inherit toolchain-funcs cmake-multilib
 
-DATA_HASH="a5b13babe65c1bba7186b41b43d4cbdc20a5c470"
+SIMDJSON_DATA_HASH="351949906abde446f0314bf79606fb5d884f5be7"
+CPM_SIMDJSON_DATA_HASH="3a55454e9d9a7133903378c28fb053f478f24537"
+CPM_VERSION="0.40.2"
 DESCRIPTION="SIMD accelerated C++ JSON library"
 HOMEPAGE="
 	https://simdjson.org/
@@ -13,12 +15,13 @@ HOMEPAGE="
 "
 SRC_URI="
 	https://github.com/${PN}/${PN}/archive/v${PV}.tar.gz -> ${P}.gh.tar.gz
-	test? ( https://github.com/${PN}/${PN}-data/archive/${DATA_HASH}.tar.gz -> ${PN}-data-${DATA_HASH}.tar.gz )
+	https://github.com/cpm-cmake/CPM.cmake/releases/download/v${CPM_VERSION}/CPM.cmake -> CPM_${CPM_VERSION}.cmake
+	https://github.com/${PN}/${PN}-data/archive/${SIMDJSON_DATA_HASH}.tar.gz -> ${PN}-data-${SIMDJSON_DATA_HASH}.tar.gz
 "
 
 LICENSE="Apache-2.0 Boost-1.0 BSD MIT"
-SLOT="0/23"
-KEYWORDS="amd64 arm arm64 ~loong ppc64 ~riscv x86"
+SLOT="0/33"
+KEYWORDS="~amd64 ~arm ~arm64 ~loong ~ppc64 ~riscv ~x86"
 IUSE="+all-impls test tools"
 
 BDEPEND="
@@ -34,9 +37,7 @@ REQUIRED_USE="test? ( tools )"
 RESTRICT="!test? ( test )"
 
 PATCHES=(
-	"${FILESDIR}/simdjson-3.10.0-dont-bundle-cxxopts.patch"
 	"${FILESDIR}/simdjson-1.0.0-install-tools.patch"
-	"${FILESDIR}/simdjson-3.7.1-data-optional.patch"
 	"${FILESDIR}/simdjson-3.10.1-tests.patch"
 )
 
@@ -49,10 +50,10 @@ DOCS=(
 )
 
 src_prepare() {
-	if use test; then
-		mkdir "${S}/dependencies/.cache" || die
-		mv "${WORKDIR}/${PN}-data-${DATA_HASH}" "${S}/dependencies/.cache/${PN}-data" || die
-	fi
+	# Need to make sure that CPM finds the data package
+	mkdir "${WORKDIR}/cpm" "${WORKDIR}/${PN}-data" || die
+	cp "${DISTDIR}/CPM_${CPM_VERSION}.cmake" "${WORKDIR}/cpm/CPM_${CPM_VERSION}.cmake" || die
+	ln -s "../${PN}-data-${SIMDJSON_DATA_HASH}" "${WORKDIR}/${PN}-data/${CPM_SIMDJSON_DATA_HASH}" || die
 
 	sed -e 's:-Werror ::' -i cmake/developer-options.cmake || die
 	sed -e '/Werror/ d ; /Werror/ d ' -i tests/ondemand/compilation_failure_tests/CMakeLists.txt || die
@@ -63,7 +64,11 @@ src_prepare() {
 
 multilib_src_configure() {
 	local mycmakeargs=(
+		-DSIMDJSON_INSTALL:BOOL=ON
 		-DSIMDJSON_ENABLE_THREADS:BOOL=ON
+		-DSIMDJSON_ENABLE_FUZZING:BOOL=OFF
+		-DCPM_SOURCE_CACHE:STRING="${WORKDIR}"
+		-Wno-dev
 	)
 	use test && mycmakeargs+=(
 		-DSIMDJSON_TESTS:BOOL=ON
@@ -79,7 +84,7 @@ multilib_src_configure() {
 		)
 	elif ! use test; then
 		mycmakeargs+=(
-			-DSIMDJSON_DEVELOPER_MODELBOOL=OFF
+			-DSIMDJSON_DEVELOPER_MODE:BOOL=OFF
 		)
 	fi
 
