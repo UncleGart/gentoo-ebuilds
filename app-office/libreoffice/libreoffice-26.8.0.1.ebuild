@@ -54,7 +54,9 @@ ADDONS_SRC=(
 	# not packaged in Gentoo, https://github.com/serge-sans-paille/frozen
 	"${ADDONS_URI}/frozen-1.2.0.tar.gz"
 	# not packaged in Gentoo, https://skia.org/
-	"${ADDONS_URI}/skia-m142-f4ed99d2443962782cf5f8b4dd27179f131e7cbe.tar.xz"
+	"${ADDONS_URI}/skia-m147-ad8ecedbfdef9f4ae4b1e73347b6dd56e6637d38.tar.xz"
+	#
+	${ADDONS_URI}/box2d-3.1.1.tar.gz
 
 	"base? (
 		${ADDONS_URI}/ba2930200c9f019c2d93a8c88c651a0f-flow-engine-0.9.4.zip
@@ -94,7 +96,7 @@ KEYWORDS="~amd64 ~arm ~arm64 ~loong ~ppc64 ~riscv ~x86"
 LO_EXTS="nlpsolver scripting-beanshell scripting-javascript wiki-publisher"
 
 IUSE="accessibility base bluetooth +branding coinmp +cups custom-cflags +dbus debug eds
-googledrive gstreamer gtk kde ldap +mariadb odk pdfimport postgres qt6 system-abseil test valgrind vulkan
+googledrive gstreamer gtk kde ldap +mariadb odk pdfimport postgres qt6 system-abseil system-box2d test valgrind vulkan
 $(printf 'libreoffice_extensions_%s ' ${LO_EXTS})"
 
 REQUIRED_USE="${PYTHON_REQUIRED_USE}
@@ -152,7 +154,7 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	>=dev-libs/redland-1.0.16
 	dev-libs/zxcvbn-c
 	>=dev-libs/xmlsec-1.2.35:=[nss]
-	>=games-engines/box2d-2.4.1:0
+	system-box2d? ( >=games-engines/box2d-3.1.1:0 )
 	media-gfx/fontforge
 	media-gfx/graphite2
 	media-libs/fontconfig
@@ -287,9 +289,9 @@ PATCHES=(
 
 	# not upstreamable stuff
 	"${FILESDIR}/${PN}-6.1-nomancompress.patch"
-	"${FILESDIR}/${PN}-24.2-qtdetect.patch"
+	#"${FILESDIR}/${PN}-24.2-qtdetect.patch"
 	"${FILESDIR}/${PN}-25.2-cflags.patch"
-	"${FILESDIR}/${PN}-26.2.4.2-poppler-26.06.0.patch"
+	#"${FILESDIR}/${PN}-26.2.4.2-poppler-26.06.0.patch"
 	# x32 ABI
 	"${FILESDIR}/${PN}-x32-configure.patch"
 	"${FILESDIR}/${PN}-7.3-x32-cpp_uno_bridge.patch"	
@@ -574,6 +576,7 @@ src_configure() {
 		$(use_with java)
 		$(use_with odk doxygen)
 		$(use_with system-abseil)
+		$(use_with system-box2d)
 		$(use_with valgrind)
 		--enable-skia-vulkan-validation
 		--disable-lpsolve --disable-ext-nlpsolver
