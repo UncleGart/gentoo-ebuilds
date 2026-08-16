@@ -1,0 +1,89 @@
+From: Investigation of sys-devel/gcc-16.2.0 x32 build failure
+Subject: [PATCH] x86-64: Fix DTV indexing and pointer-sized loads in
+ _dl_tlsdesc_dynamic for x32
+
+The DTV is an array of dtv_t:
+
+  struct dtv_pointer { void *val; void *to_free; };
+  typedef union dtv { size_t counter; struct dtv_pointer pointer; } dtv_t;
+
+so sizeof (dtv_t) == 2 * sizeof (void *): 16 bytes for x86-64 but only
+8 bytes for x32.  The hand-written fast path in _dl_tlsdesc_dynamic
+hardcodes a scale of 16 ("salq $4") and uses 8-byte movq/cmpq for the
+pointer-sized dtv[0].counter and dtv[N].pointer.val fields.  On x32
+this means the fast path
+
+  * indexes dtv[2*modid] instead of dtv[modid],
+  * loads 8 bytes where only 4 belong to the field, and
+  * compares against a 64-bit -1, so the TLS_DTV_UNALLOCATED guard
+    never matches and the safe __tls_get_addr slow path is skipped.
+
+glibc's own C implementation of ___tls_get_addr, compiled for x32,
+indexes the very same array with scale 8 ("mov (%esi,%eax,8),%eax") and
+compares against a 4-byte -1, which confirms the correct layout; the
+i386 version of this same routine likewise uses scale 8 because i386
+has the identical 8-byte dtv_t.
+
+When the wrongly-indexed slot happens to read as 0, the resolver
+returns 0 - TP, so the caller's "add %fs:0" yields the null pointer and
+the process dies with SIGSEGV at address 0.  This is only reachable
+once static TLS surplus is exhausted and a dlopen'd module with
+-mtls-dialect=gnu2 TLS falls back to dynamic TLS; with static TLS the
+descriptor gets _dl_tlsdesc_return and the bug is hidden.
+
+Observed as a segfault of binutils "ar --plugin liblto_plugin.so" while
+archiving libatomic during a GCC 16.2.0 profiledbootstrap on x32, where
+the PGO-instrumented LTO plugin carries a __thread variable
+(__gcov_indirect_call) and is dlopen'd by ar.
+
+Use the ILP32-aware scale and the *_LP forms for the pointer-sized
+accesses.  Code generation for x86-64 is unchanged (verified
+byte-identical); x32 now matches the C implementation.
+
+--- a/sysdeps/x86_64/dl-tlsdesc-dynamic.h
++++ b/sysdeps/x86_64/dl-tlsdesc-dynamic.h
+@@ -26,6 +26,21 @@
+ 
+ #include "dl-trampoline-state.h"
+ 
++/* The DTV is an array of dtv_t, a union of size_t and
++   struct dtv_pointer { void *val; void *to_free; }.  Its size is thus
++   2 * sizeof (void *): 16 bytes for x86-64 but only 8 bytes for x32.
++   Likewise dtv[0].counter and dtv[N].pointer.val are pointer-sized,
++   not always 8 bytes.  Scale the module id by the correct DTV size and
++   use pointer-sized loads/compares so the fast path is correct on both
++   ABIs.  Getting this wrong on x32 makes the fast path read dtv[2*m],
++   miss the TLS_DTV_UNALLOCATED check, and return -TP, so that the
++   caller's TP + offset computes the null pointer.  */
++#ifdef __ILP32__
++# define DTV_SIZE_LOG	3
++#else
++# define DTV_SIZE_LOG	4
++#endif
++
+ 	.section SECTION(.text),"ax",@progbits
+ 
+ 	.hidden _dl_tlsdesc_dynamic
+@@ -66,13 +81,17 @@
+ 	mov	%fs:DTV_OFFSET, %RSI_LP
+ 	movq	%rdi, -8(%rsp)
+ 	movq	TLSDESC_ARG(%rax), %rdi
+-	movq	(%rsi), %rax
+-	cmpq	%rax, TLSDESC_GEN_COUNT(%rdi)
++	/* dtv[0].counter is size_t, i.e. 4 bytes on x32.  */
++	mov	(%rsi), %RAX_LP
++	cmp	%RAX_LP, TLSDESC_GEN_COUNT(%rdi)
+ 	ja	2f
++	/* ti_module is uint64_t in both ABIs, but the DTV element size
++	   is 2 * sizeof (void *), so shift by DTV_SIZE_LOG.  */
+ 	movq	TLSDESC_MODID(%rdi), %rax
+-	salq	$4, %rax
+-	movq	(%rax,%rsi), %rax
+-	cmpq	$-1, %rax
++	shl	$DTV_SIZE_LOG, %RAX_LP
++	/* dtv[ti_module].pointer.val is a pointer: 4 bytes on x32.  */
++	mov	(%rax,%rsi), %RAX_LP
++	cmp	$-1, %RAX_LP
+ 	je	2f
+ 	addq	TLSDESC_MODOFF(%rdi), %rax
+ 1:
