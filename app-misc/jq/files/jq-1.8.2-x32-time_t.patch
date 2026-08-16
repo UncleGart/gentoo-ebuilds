@@ -1,0 +1,19 @@
+--- a/configure.ac
++++ b/configure.ac
+@@ -26,6 +26,7 @@
+ AM_PROG_CC_C_O
+ 
+ AC_SYS_LARGEFILE # issue 2167
++AC_SYS_YEAR2038  # issue 3369; supersedes the _TIME_BITS hack in src/builtin.c
+ 
+ dnl couldn't use AM_PROG_LEX as it doesn't support header files like the
+ dnl AC_PROG_YACC macros...
+--- a/src/builtin.c
++++ b/src/builtin.c
+@@ -1,6 +1,3 @@
+-#if __SIZEOF_POINTER__==4
+-# define _TIME_BITS 64
+-#endif
+ #ifndef __sun__
+ # define _XOPEN_SOURCE
+ # define _XOPEN_SOURCE_EXTENDED 1
