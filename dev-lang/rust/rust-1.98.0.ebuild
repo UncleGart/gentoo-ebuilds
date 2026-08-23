@@ -8,7 +8,7 @@ EAPI=8
 # Bump notes: https://wiki.gentoo.org/wiki/Project:Rust/Rust_bump
 
 LLVM_COMPAT=( 22 )
-PYTHON_COMPAT=( python3_{12..14} )
+PYTHON_COMPAT=( python3_{13..14} )
 
 # Patches are kept in rust-patches.git, see its README.rst for the versioning
 # scheme.
@@ -22,11 +22,11 @@ PYTHON_COMPAT=( python3_{12..14} )
 RUST_MAX_VER=${PV%%_*}
 RUST_PV=${PV%%_p*}
 RUST_P=${PN}-${RUST_PV}
-[[ -z ${RUST_PATCH_VER} ]] && RUST_PATCH_VER=${PV}
+[[ -z ${RUST_PATCH_VER} ]] && RUST_PATCH_VER=1.97.1
 
 if [[ ${PV} == *9999* ]]; then
 	# Update this as new `beta` releases come out.
-	RUST_MIN_VER="1.93.0"
+	RUST_MIN_VER="1.95.0"
 elif [[ ${PV} == *beta* ]]; then
 	RUST_MIN_VER="$(ver_cut 1).$(($(ver_cut 2) - 1)).0"
 else
@@ -265,7 +265,7 @@ pkg_setup() {
 	pre_build_checks
 	python-any-r1_pkg_setup
 
-	export LIBGIT2_NO_PKG_CONFIG=1 #749381
+	#export LIBGIT2_NO_PKG_CONFIG=1 #749381
 	if tc-is-cross-compiler; then
 		export PKG_CONFIG_ALLOW_CROSS=1
 		export PKG_CONFIG_PATH="${ROOT}/usr/$(get_libdir)/pkgconfig"
@@ -358,6 +358,7 @@ src_unpack() {
 	else
 		default
 	fi
+	rm "${WORKDIR}/rust-patches-${RUST_PATCH_VER}/1.96.0-compiler-musl-dynamic-linking.patch"
 }
 
 src_prepare() {
@@ -437,6 +438,7 @@ src_configure() {
 	# Avoid bundled copies of libraries
 	export RUSTONIG_SYSTEM_LIBONIG=1
 	export LIBSQLITE3_SYS_USE_PKG_CONFIG=1
+	export LIBSSH2_SYS_USE_PKG_CONFIG=1
 
 	filter-lto # https://bugs.gentoo.org/862109 https://bugs.gentoo.org/866231
 
