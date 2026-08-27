@@ -10,11 +10,11 @@ PYTHON_COMPAT=( python3_{13..14} )
 PYTHON_REQ_USE="threads(+),xml(+)"
 
 MY_PV="${PV/_alpha/.alpha}"
-MY_PV="${MY_PV/_beta/.beta}"
+#MY_PV="${MY_PV/_beta/.beta}"
 # experimental ; release ; old
 # Usually the tarballs are moved a lot so this should make everyone happy.
 DEV_URI="
-	https://download.documentfoundation.org/libreoffice/src/${MY_PV:0:5}
+	https://download.documentfoundation.org/libreoffice/src/${MY_PV:0:6}
 	https://downloadarchive.documentfoundation.org/libreoffice/old/${MY_PV}/src
 	https://dev-builds.libreoffice.org/pre-releases/src
 "
@@ -54,7 +54,9 @@ ADDONS_SRC=(
 	# not packaged in Gentoo, https://github.com/serge-sans-paille/frozen
 	"${ADDONS_URI}/frozen-1.2.0.tar.gz"
 	# not packaged in Gentoo, https://skia.org/
-	"${ADDONS_URI}/skia-m142-f4ed99d2443962782cf5f8b4dd27179f131e7cbe.tar.xz"
+	"${ADDONS_URI}/skia-m147-ad8ecedbfdef9f4ae4b1e73347b6dd56e6637d38.tar.xz"
+	#
+	${ADDONS_URI}/box2d-3.1.1.tar.gz
 
 	"base? (
 		${ADDONS_URI}/ba2930200c9f019c2d93a8c88c651a0f-flow-engine-0.9.4.zip
@@ -94,7 +96,7 @@ KEYWORDS="~amd64 ~arm ~arm64 ~loong ~ppc64 ~riscv ~x86"
 LO_EXTS="nlpsolver scripting-beanshell scripting-javascript wiki-publisher"
 
 IUSE="accessibility base bluetooth +branding coinmp +cups custom-cflags +dbus debug eds
-googledrive gstreamer gtk kde ldap +mariadb odk pdfimport postgres qt6 system-abseil test valgrind vulkan
+googledrive gstreamer gtk kde ldap +mariadb odk pdfimport postgres qt6 system-abseil system-box2d test valgrind vulkan
 $(printf 'libreoffice_extensions_%s ' ${LO_EXTS})"
 
 REQUIRED_USE="${PYTHON_REQUIRED_USE}
@@ -152,7 +154,7 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	>=dev-libs/redland-1.0.16
 	dev-libs/zxcvbn-c
 	>=dev-libs/xmlsec-1.2.35:=[nss]
-	>=games-engines/box2d-2.4.1:0
+	system-box2d? ( >=games-engines/box2d-3.1.1:0 )
 	media-gfx/fontforge
 	media-gfx/graphite2
 	media-libs/fontconfig
@@ -287,12 +289,14 @@ PATCHES=(
 
 	# not upstreamable stuff
 	"${FILESDIR}/${PN}-6.1-nomancompress.patch"
-	"${FILESDIR}/${PN}-24.2-qtdetect.patch"
+	#"${FILESDIR}/${PN}-24.2-qtdetect.patch"
 	"${FILESDIR}/${PN}-25.2-cflags.patch"
 	#"${FILESDIR}/${PN}-26.2.4.2-poppler-26.06.0.patch"
+	# box2d-3.1.1 workaround patch
+	"${FILESDIR}/box2d-3.1.1.patch"
 	# x32 ABI
 	"${FILESDIR}/${PN}-x32-configure.patch"
-	"${FILESDIR}/${PN}-7.3-x32-cpp_uno_bridge.patch"	
+	"${FILESDIR}/${PN}-7.3-x32-cpp_uno_bridge.patch"
 )
 
 _check_reqs() {
@@ -456,9 +460,6 @@ src_configure() {
 		strip-flags
 	fi
 
-	# Workaround for bug #967047
-	tc-is-gcc && [[ $(gcc-major-version) -ge 16 ]] && append-cxxflags -fno-devirtualize-speculatively
-
 	# Show flags set at the end
 	einfo "  Used CFLAGS:    ${CFLAGS}"
 	einfo "  Used LDFLAGS:   ${LDFLAGS}"
@@ -574,6 +575,7 @@ src_configure() {
 		$(use_with java)
 		$(use_with odk doxygen)
 		$(use_with system-abseil)
+		$(use_with system-box2d)
 		$(use_with valgrind)
 		--enable-skia-vulkan-validation
 		--disable-lpsolve --disable-ext-nlpsolver
