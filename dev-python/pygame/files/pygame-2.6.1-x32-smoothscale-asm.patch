@@ -1,0 +1,154 @@
+--- a/src_c/scale_mmx64.c
++++ b/src_c/scale_mmx64.c
+@@ -38,6 +38,28 @@
+ #include <memory.h>
+ #include "scale.h"
+ 
++/* The x32 ABI (ILP32 on x86-64) keeps the 64 bit register set but uses 32 bit
++ * pointers, so GCC substitutes 32 bit registers for the pointer operands of
++ * the asm blocks below.  Two consequences:
++ *
++ *   - an x86-64 memory reference may not mix a 32 bit base register with a
++ *     64 bit index register, so the hand written index register must match
++ *     the width of the compiler supplied base register;
++ *   - a pointer read back out of memory is 4 bytes wide, not 8.
++ *
++ * PG_AX is the scratch register used as a pointer/index, PG_LOADP loads a
++ * pointer from memory into it, PG_LOADI loads an array index into it.
++ */
++#if defined(__ILP32__)
++#define PG_AX "%%" "eax"
++#define PG_LOADP "movl"
++#define PG_LOADI "movl"
++#else
++#define PG_AX "%%" "rax"
++#define PG_LOADP "mov"
++#define PG_LOADI "movslq"
++#endif
++
+ /* These functions implement an area-averaging shrinking filter in the
+  * X-dimension.
+  */
+@@ -246,18 +268,18 @@
+         " punpcklwd     %%mm7,      %%mm7;           "
+         " punpckldq     %%mm7,      %%mm7;           "
+         "1:                                          " /* outer Y-loop */
+-        " mov              %2,      %%rax;           " /* rax == accumulate */
++        " " PG_LOADP "              %2,      " PG_AX ";           " /* PG_AX == accumulate */
+         " cmpl        $0x4000,      %%ecx;           "
+         " jbe              3f;                       "
+         " movl             %4,      %%edx;           " /* edx == width */
+         "2:                                          "
+         " movd           (%0),      %%mm1;           "
+         " add              $4,         %0;           "
+-        " movq        (%%rax),      %%mm2;           "
++        " movq        (" PG_AX "),      %%mm2;           "
+         " punpcklbw     %%mm0,      %%mm1;           "
+         " paddw         %%mm1,      %%mm2;           "
+-        " movq          %%mm2,    (%%rax);           "
+-        " add              $8,      %%rax;           "
++        " movq          %%mm2,    (" PG_AX ");           "
++        " add              $8,      " PG_AX ";           "
+         " decl          %%edx;                       "
+         " jne              2b;                       "
+         " subl        $0x4000,      %%ecx;           "
+@@ -274,7 +296,7 @@
+         " movd           (%0),      %%mm4;           " /* mm4 = srcpix */
+         " add              $4,         %0;           "
+         " punpcklbw     %%mm0,      %%mm4;           "
+-        " movq        (%%rax),      %%mm5;           " /* mm5 = accumulate */
++        " movq        (" PG_AX "),      %%mm5;           " /* mm5 = accumulate */
+         " movq          %%mm6,      %%mm3;           "
+         " psllw            $2,      %%mm4;           "
+         " movq          %%mm4,      %%mm0;           " /* mm3 = (srcpix *
+@@ -297,9 +319,9 @@
+         " pmulhw        %%mm1,      %%mm4;           "
+         " paddw         %%mm0,      %%mm4;           "
+         " paddw         %%mm2,      %%mm4;           "
+-        " movq          %%mm3,    (%%rax);           "
++        " movq          %%mm3,    (" PG_AX ");           "
+         " paddw         %%mm5,      %%mm4;           "
+-        " add              $8,      %%rax;           "
++        " add              $8,      " PG_AX ";           "
+         " movq          %%mm7,      %%mm0;           "
+         " psraw           $15,      %%mm0;           "
+         " pand          %%mm4,      %%mm0;           "
+@@ -363,18 +385,18 @@
+         " movd             %6,      %%mm7;           " /* mm7 == yrecipmmx */
+         " pshufw    $0, %%mm7,      %%mm7;           "
+         "1:                                          " /* outer Y-loop */
+-        " mov              %2,      %%rax;           " /* rax == accumulate */
++        " " PG_LOADP "              %2,      " PG_AX ";           " /* PG_AX == accumulate */
+         " cmpl        $0x4000,      %%ecx;           "
+         " jbe              3f;                       "
+         " movl             %4,      %%edx;           " /* edx == width */
+         "2:                                          "
+         " movd           (%0),      %%mm1;           "
+         " add              $4,         %0;           "
+-        " movq        (%%rax),      %%mm2;           "
++        " movq        (" PG_AX "),      %%mm2;           "
+         " punpcklbw     %%mm0,      %%mm1;           "
+         " paddw         %%mm1,      %%mm2;           "
+-        " movq          %%mm2,    (%%rax);           "
+-        " add              $8,      %%rax;           "
++        " movq          %%mm2,    (" PG_AX ");           "
++        " add              $8,      " PG_AX ";           "
+         " decl          %%edx;                       "
+         " jne              2b;                       "
+         " subl        $0x4000,      %%ecx;           "
+@@ -390,16 +412,16 @@
+         " movd           (%0),      %%mm4;           " /* mm4 = srcpix */
+         " add              $4,         %0;           "
+         " punpcklbw     %%mm0,      %%mm4;           "
+-        " movq        (%%rax),      %%mm5;           " /* mm5 = accumulate */
++        " movq        (" PG_AX "),      %%mm5;           " /* mm5 = accumulate */
+         " movq          %%mm6,      %%mm3;           "
+         " psllw            $2,      %%mm4;           "
+         " pmulhuw       %%mm4,      %%mm3;           " /* mm3 = (srcpix *
+                                                           yfrac) >> 16 */
+         " pmulhuw       %%mm1,      %%mm4;           " /* mm4 = (srcpix *
+                                                           ycounter >> 16) */
+-        " movq          %%mm3,    (%%rax);           "
++        " movq          %%mm3,    (" PG_AX ");           "
+         " paddw         %%mm5,      %%mm4;           "
+-        " add              $8,      %%rax;           "
++        " add              $8,      " PG_AX ";           "
+         " pmulhuw       %%mm7,      %%mm4;           "
+         " packuswb      %%mm0,      %%mm4;           "
+         " movd          %%mm4,       (%1);           "
+@@ -476,14 +498,14 @@
+             " movl             %5,      %%ecx;           "
+             " pxor          %%mm0,      %%mm0;           "
+             "1:                                          "
+-            " movslq         (%3),      %%rax;           " /* get xidx0[x] */
++            " " PG_LOADI "         (%3),      " PG_AX ";           " /* get xidx0[x] */
+             " add              $4,         %3;           "
+             " movq           (%0),      %%mm1;           " /* load mult0 */
+             " add              $8,         %0;           "
+             " movq           (%1),      %%mm2;           " /* load mult1 */
+             " add              $8,         %1;           "
+-            " movd   (%4,%%rax,4),      %%mm4;           "
+-            " movd  4(%4,%%rax,4),      %%mm5;           "
++            " movd   (%4," PG_AX ",4),      %%mm4;           "
++            " movd  4(%4," PG_AX ",4),      %%mm5;           "
+             " punpcklbw     %%mm0,      %%mm4;           "
+             " punpcklbw     %%mm0,      %%mm5;           "
+             " pmullw        %%mm1,      %%mm4;           "
+@@ -557,14 +579,14 @@
+             " movl             %5,      %%ecx;           "
+             " pxor          %%mm0,      %%mm0;           "
+             "1:                                          "
+-            " movslq         (%3),      %%rax;           " /* get xidx0[x] */
++            " " PG_LOADI "         (%3),      " PG_AX ";           " /* get xidx0[x] */
+             " add              $4,         %3;           "
+             " movq           (%0),      %%mm1;           " /* load mult0 */
+             " add              $8,         %0;           "
+             " movq           (%1),      %%mm2;           " /* load mult1 */
+             " add              $8,         %1;           "
+-            " movd   (%4,%%rax,4),      %%mm4;           "
+-            " movd  4(%4,%%rax,4),      %%mm5;           "
++            " movd   (%4," PG_AX ",4),      %%mm4;           "
++            " movd  4(%4," PG_AX ",4),      %%mm5;           "
+             " punpcklbw     %%mm0,      %%mm4;           "
+             " punpcklbw     %%mm0,      %%mm5;           "
+             " pmullw        %%mm1,      %%mm4;           "
