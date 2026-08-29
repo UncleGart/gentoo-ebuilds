@@ -1,4 +1,4 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
@@ -14,7 +14,7 @@ S="${WORKDIR}/${P}/src"
 
 LICENSE="Boost-1.0"
 SLOT="0"
-KEYWORDS="~alpha amd64 arm arm64 hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~arm64-macos ~x64-macos ~x64-solaris"
 IUSE="examples"
 RESTRICT="test"
 
@@ -24,7 +24,7 @@ PATCHES=(
 	"${FILESDIR}"/${PN}-4.9.2-disable_python_rpath.patch
 	"${FILESDIR}"/${PN}-4.9.2-darwin-gentoo-toolchain.patch
 	"${FILESDIR}"/${PN}-4.9.2-add-none-feature-options.patch
-	"${FILESDIR}"/${PN}-4.9.2-no-implicit-march-flags.patch
+	"${FILESDIR}"/${PN}-5.4.2-no-implicit-march-flags.patch
 	"${FILESDIR}"/boost-build-1.67.0-linux-x32.patch
 )
 
@@ -63,7 +63,7 @@ src_install() {
 
 	find "${ED}"/usr/share/b2/src -iname '*.py' -delete || die
 
-	dodoc ../notes/{changes,release_procedure,build_dir_option,relative_source_paths}.txt
+	dodoc ../notes/relative_source_paths.txt
 
 	if use examples; then
 		docinto examples

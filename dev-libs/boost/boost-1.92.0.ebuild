@@ -1,17 +1,13 @@
-# Copyright 1999-2025 Gentoo Authors
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 # Includes patches for x32 ABI
 
 EAPI=8
 
-# Keep an eye on both of these after releases for patches:
-# * https://www.boost.org/patches/
-# * https://www.boost.org/users/history/version_${MY_PV}.html
-# (e.g. https://www.boost.org/users/history/version_1_83_0.html)
-# Note that the latter may sometimes feature patches not on the former too.
+# Keep an eye on releases: https://www.boost.org/releases/
 
-PYTHON_COMPAT=( python3_{11..13} )
+PYTHON_COMPAT=( python3_{11..14} )
 
 inherit dot-a edo flag-o-matic multiprocessing python-r1 toolchain-funcs multilib-minimal
 
@@ -24,7 +20,7 @@ S="${WORKDIR}/${PN}_${MY_PV}"
 
 LICENSE="Boost-1.0"
 SLOT="0/${PV}"
-KEYWORDS="~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~amd64-linux ~x86-linux ~arm64-macos ~ppc-macos ~x64-macos ~x64-solaris"
+KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~loong ~m68k ~mips ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86 ~arm64-macos ~x64-macos ~x64-solaris"
 IUSE="bzip2 +context debug doc icu lzma +nls mpi numpy python +stacktrace test test-full tools zlib zstd"
 REQUIRED_USE="
 	python? ( ${PYTHON_REQUIRED_USE} )
@@ -37,30 +33,36 @@ RDEPEND="
 	icu? ( dev-libs/icu:=[${MULTILIB_USEDEP}] )
 	!icu? ( virtual/libiconv[${MULTILIB_USEDEP}] )
 	lzma? ( app-arch/xz-utils:=[${MULTILIB_USEDEP}] )
-	mpi? ( virtual/mpi[${MULTILIB_USEDEP},cxx,threads] )
+	mpi? ( virtual/mpi[${MULTILIB_USEDEP},threads] )
 	python? (
 		${PYTHON_DEPS}
 		numpy? ( dev-python/numpy:=[${PYTHON_USEDEP}] )
 	)
-	zlib? ( sys-libs/zlib:=[${MULTILIB_USEDEP}] )
+	zlib? ( virtual/zlib:=[${MULTILIB_USEDEP}] )
 	zstd? ( app-arch/zstd:=[${MULTILIB_USEDEP}] )"
 DEPEND="${RDEPEND}"
 BDEPEND=">=dev-build/b2-5.1.0"
 
 PATCHES=(
 	"${FILESDIR}"/${PN}-1.82.0-install-jam-x32.patch
-	"${FILESDIR}"/${PN}-1.86.0-fix-x32-build.patch
-	"${FILESDIR}"/${PN}-1.88.0-gcc-x32.patch
 	"${FILESDIR}"/${PN}-1.88.0-disable_icu_rpath.patch
 	"${FILESDIR}"/${PN}-1.88.0-build-auto_index-tool.patch
-	"${FILESDIR}"/${PN}-1.88.0-process-error-alpha.patch
-	"${FILESDIR}"/${PN}-1.88.0-algorithm-reverse_copy.patch
 	"${FILESDIR}"/${PN}-1.88.0-beast-network-sandbox.patch
 	"${FILESDIR}"/${PN}-1.88.0-bind-no-Werror.patch
-	"${FILESDIR}"/${PN}-1.88.0-mysql-cstdint.patch
-	"${FILESDIR}"/${PN}-1.88.0-range-any_iterator.patch
+	"${FILESDIR}"/${PN}-1.88.0-context-x32.patch
 	"${FILESDIR}"/${PN}-1.88.0-system-crashing-test.patch
 	"${FILESDIR}"/${PN}-1.88.0-yap-cstdint.patch
+	# https://github.com/boostorg/dll/issues/108
+	"${FILESDIR}"/${PN}-1.89.0-dll-no-lto.patch
+	"${FILESDIR}"/${PN}-1.89.0-predef-include-path.patch
+	"${FILESDIR}"/${PN}-1.89.0-python-exclude-broken-tests.patch
+	"${FILESDIR}"/${PN}-1.89.0-unordered-no-tbb.patch
+	"${FILESDIR}"/${PN}-1.90.0-cobalt.patch
+	"${FILESDIR}"/${PN}-1.92.0-msm-std.patch
+	"${FILESDIR}"/${PN}-1.90.0-unsigned-char-EOF.patch
+	"${FILESDIR}"/${PN}-1.91.0-spirit-test.patch
+	"${FILESDIR}"/${PN}-1.91.0-uninitialised-buffer.patch
+	"${FILESDIR}"/${PN}-1.91.0-wave-test-cfg.patch
 )
 
 create_user-config.jam() {
@@ -80,10 +82,8 @@ create_user-config.jam() {
 		local mpi_configuration="using mpi ;"
 	fi
 
-	local USER_ASMFLAGS="${ASMFLAGS} $(usex abi_x86_x32 "-mx32")"
-
 	cat > "${user_config_jam}" <<- __EOF__ || die
-		using ${compiler} : ${compiler_version} : ${compiler_executable} : <cflags>"${CPPFLAGS} ${CFLAGS}" <cxxflags>"${CPPFLAGS} ${CXXFLAGS}" <asmflags>"${USER_ASMFLAGS}" <linkflags>"${LDFLAGS}" <archiver>"$(tc-getAR)" <ranlib>"$(tc-getRANLIB)" ;
+		using ${compiler} : ${compiler_version} : ${compiler_executable} : <cflags>"${CPPFLAGS} ${CFLAGS}" <cxxflags>"${CPPFLAGS} ${CXXFLAGS}" <linkflags>"${LDFLAGS}" <archiver>"$(tc-getAR)" <ranlib>"$(tc-getRANLIB)" ;
 		${mpi_configuration}
 	__EOF__
 
@@ -154,7 +154,12 @@ src_configure() {
 	# https://bugs.gentoo.org/943975
 	# https://github.com/boostorg/quickbook/issues/27
 	# https://github.com/boostorg/spirit/issues/800
-	use tools && filter-lto
+	#
+	# Tests also fail:
+	# https://bugs.gentoo.org/956660
+	# https://github.com/boostorg/smart_ptr/issues/121
+	# https://github.com/boostorg/thread/issues/415
+	filter-lto
 
 	lto-guarantee-fat
 
@@ -211,6 +216,10 @@ src_configure() {
 		# offsets on 32-bit hosts (#894564)
 		append-lfs-flags
 	fi
+
+	if use abi_x86_x32; then
+		OPTIONS+=( "address-model=32" "architecture=x86" "abi=x32" )
+	fi
 }
 
 multilib_src_compile() {
@@ -230,65 +239,36 @@ multilib_src_compile() {
 
 multilib_src_test() {
 	##
-	## Preparation
-	##
-
-	# Some test suites have no main because normally boost.test can
-	# automatically initialize & run them, but this only seems to be
-	# supported for statically linked builds/tests.
-	# Therefore we use an explicit list of tests which need patching
-	# with an additional main().
-	# Determining this dynamically is not really possible.
-	local libs_needpatch=(
-		"accumulators"
-	)
-
-	einfo "Patching: ${libs_needpatch[@]}"
-
-	local lib
-	for lib in "${libs_needpatch[@]}"; do
-		# move into library test dir
-		pushd "${BUILD_DIR}/libs/${lib}/test" >/dev/null || die
-			# find all test cases and patch them
-			local testcases testcase
-			readarray -td '' testcases < <(find . -name "*.cpp" -print0)
-			for testcase in "${testcases[@]}"; do
-				# add main() to bootstrap old-style test suite
-				cat "${FILESDIR}/unit-test-main.cpp" >> ${testcase} || die
-			done
-		popd >/dev/null
-	done
-
-	##
 	## Test exclusions
 	##
 
 	# The following libraries do not compile or fail their tests:
 	local libs_excluded=(
-		# is_invocable.cpp:35:58: error: static assertion failed: (std::is_invocable<Callable, Args...>() == boost::callable_traits::is_invocable<Callable, Args...>())
+		# it seems tests are no longer built
 		"callable_traits"
 		# test output comparison failure
 		"config"
-		# "C++03 support was deprecated in Boost.Chrono 1.82" ??
-		"contract"
 		# undefined reference to `boost::math::concepts::real_concept boost::math::bernoulli_b2n<boost::math::concepts::real_concept>(int)
 		"math"
-		# assignment of read-only member 'gauss::laguerre::detail::laguerre_l_object<T>::order'
-		"multiprecision"
-		# PyObject* boost::parameter::python::aux::unspecified_type():
-		#   /usr/include/python3.13/object.h:339:30: error: lvalue required as left operand of assignment
+		# In function 'PyObject* boost::parameter::python::aux::unspecified_type()':
+		#  /usr/include/python3.13/object.h:339:30: error: lvalue required as left operand of assignment
+		#  #define Py_TYPE(ob) Py_TYPE(_PyObject_CAST(ob))
+		#                      ~~~~~~~^~~~~~~~~~~~~~~~~~~~
 		"parameter_python"
 		# scope/lambda_tests22.cpp(27): test 'x == 1' failed in function 'int main()'
 		"phoenix"
-		# Unable to find file or target named (yes, really)
-		"predef"
-		# AttributeError: property '<unnamed Boost.Python function>' of 'X' object has no setter
-		"python"
 		# vec_access.hpp:95:223: error: static assertion failed: Boost QVM static assertion failure
 		"qvm"
-		# regex_timer.cpp:19: ../../../boost/timer.hpp:21:3: error: #error This header is
-		#   deprecated and will be removed. (You can define BOOST_TIMER_ENABLE_DEPRECATED to suppress
-		#   this error.)
+		# In function 'void boost::redis::detail::update_sentinel_list(std::vector<boost::redis::address>&,
+		#  std::size_t, boost::span<const boost::redis::address>, boost::span<const boost::redis::address>)':
+		#  boost/redis/impl/sentinel_utils.hpp:269:20: error: no matching function for call to
+		#  'find(std::vector<boost::redis::address>::iterator, std::vector<boost::redis::address>::iterator,
+		#    const boost::redis::address&)'
+		"redis"
+		# Processing file ../boost_1_89_0/libs/regex/example/../include/boost/regex/v5/regex_iterator.hpp
+		# terminate called after throwing an instance of 'std::length_error'
+		#   what():  basic_string::_M_create
+		# https://github.com/boostorg/regex/issues/274
 		"regex"
 		# in function `boost::archive::tmpnam(char*)': test_array.cpp:(.text+0x108):
 		#   undefined reference to `boost::filesystem::detail::unique_path(...)'
@@ -296,11 +276,6 @@ multilib_src_test() {
 		# TuTestMain.cpp(22) fatal error: in "test_main_caller( argc_ argv )":
 		#   std::runtime_error: Event was not consumed!
 		"statechart"
-		# erase_tests.cpp:(.text+0x44cce): undefined reference to
-		#   tbb::detail::r1::execution_slot(tbb::detail::d1::execution_data const*)
-		"unordered"
-		# t_5_007.cpp(22): error: could not find include file: boost/version.hpp
-		"wave"
 	)
 
 	if ! use mpi; then
@@ -312,7 +287,7 @@ multilib_src_test() {
 
 	if ! use test-full; then
 		# passes its tests but takes a very long time to build
-		local no_full=( "geometry" )
+		local no_full=( "geometry" "multiprecision" )
 		einfo "Disabling expensive tests due to USE=-test-full: ${no_full[@]}"
 		libs_excluded+=( ${no_full[@]} )
 	fi
