@@ -574,8 +574,6 @@ src_configure() {
 		$(use_with googledrive gdrive-client-secret ${google_default_client_secret})
 		$(use_with java)
 		$(use_with odk doxygen)
-		$(use_with system-abseil)
-		$(use_with system-box2d)
 		$(use_with valgrind)
 		--enable-skia-vulkan-validation
 		--disable-lpsolve --disable-ext-nlpsolver

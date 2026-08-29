@@ -1,0 +1,10 @@
+prefix=/usr
+exec_prefix=${prefix}
+libdir=${exec_prefix}/@libdir@
+includedir=${prefix}/include
+
+Name: box2d
+Description: 2D physics engine
+Version: @version@
+Libs: -L${libdir} -lbox2d
+Cflags: -I${includedir} -I${includedir}/box2d
