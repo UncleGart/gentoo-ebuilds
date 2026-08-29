@@ -20,8 +20,8 @@ SRC_URI="
 "
 
 LICENSE="Apache-2.0 Boost-1.0 BSD MIT"
-SLOT="0/29"
-KEYWORDS="amd64 ~arm arm64 ~loong ~ppc64 ~riscv ~x86"
+SLOT="0/33"
+KEYWORDS="~amd64 ~arm ~arm64 ~loong ~ppc64 ~riscv ~x86"
 IUSE="+all-impls test tools"
 
 BDEPEND="
@@ -64,6 +64,7 @@ src_prepare() {
 
 multilib_src_configure() {
 	local mycmakeargs=(
+		-DSIMDJSON_INSTALL:BOOL=ON
 		-DSIMDJSON_ENABLE_THREADS:BOOL=ON
 		-DSIMDJSON_ENABLE_FUZZING:BOOL=OFF
 		-DCPM_SOURCE_CACHE:STRING="${WORKDIR}"
