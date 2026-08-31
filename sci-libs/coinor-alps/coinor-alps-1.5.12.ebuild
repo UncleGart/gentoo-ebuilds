@@ -1,0 +1,56 @@
+# Copyright 1999-2026 Gentoo Authors
+# Distributed under the terms of the GNU General Public License v2
+
+EAPI=8
+
+MY_PN=CHiPPS-ALPS
+
+DESCRIPTION="COIN-OR Framework for implementing parallel graph search algorithms"
+HOMEPAGE="https://github.com/coin-or/CHiPPS-ALPS/"
+SRC_URI="https://github.com/coin-or/${MY_PN}/archive/releases/${PV}.tar.gz -> ${P}.tar.gz"
+
+S="${WORKDIR}/${MY_PN}-releases-${PV}/Alps"
+
+LICENSE="EPL-1.0"
+SLOT="0/3"
+KEYWORDS="~amd64 ~x86"
+IUSE="doc test"
+RESTRICT="!test? ( test )"
+
+RDEPEND="sci-libs/coinor-utils:="
+DEPEND="${RDEPEND}"
+# No virtual/fortran: Alps' configure contains no Fortran probe at all.
+# See https://github.com/coin-or/CoinUtils/issues/132 and Gentoo bug 601648.
+BDEPEND="
+	virtual/pkgconfig
+	doc? ( app-text/doxygen[dot] )
+	test? ( sci-libs/coinor-cgl )"
+
+src_prepare() {
+	default
+	# Prevent unneeded call to pkg-config that needs ${ED}'s in path.
+	sed -i '/--libs.*addlibs.txt/d' Makefile.in || die
+}
+
+src_configure() {
+	econf $(use_with doc dot)
+}
+
+src_compile() {
+	emake all $(usex doc doxydoc '')
+}
+
+src_test() {
+	# Needed given "make check" is a noop and it skips the working one.
+	emake test
+}
+
+src_install() {
+	default
+	dodoc -r examples
+	use doc && dodoc -r doxydoc/html
+
+	# Duplicate or irrelevant files.
+	rm -r "${ED}"/usr/share/coin/doc || die
+	find "${ED}" -name '*.la' -delete || die
+}

@@ -1,0 +1,14 @@
+BDEPEND=virtual/pkgconfig doc? ( app-text/doxygen[dot] ) test? ( sci-libs/coinor-sample )
+DEFINED_PHASES=compile configure install prepare test
+DEPEND=>=sci-libs/coinor-alps-1.5.12:= >=sci-libs/coinor-bcps-0.94.9:= sci-libs/coinor-cgl:= sci-libs/coinor-clp:= sci-libs/coinor-osi:= sci-libs/coinor-utils:=
+DESCRIPTION=COIN-OR BiCePS Linear Integer Solver
+EAPI=8
+HOMEPAGE=https://github.com/coin-or/CHiPPS-BLIS/
+IUSE=doc test
+KEYWORDS=~amd64 ~x86
+LICENSE=EPL-1.0
+RDEPEND=>=sci-libs/coinor-alps-1.5.12:= >=sci-libs/coinor-bcps-0.94.9:= sci-libs/coinor-cgl:= sci-libs/coinor-clp:= sci-libs/coinor-osi:= sci-libs/coinor-utils:=
+RESTRICT=!test? ( test )
+SLOT=0/1
+SRC_URI=https://github.com/coin-or/CHiPPS-BLIS/archive/releases/0.94.13.tar.gz -> coinor-blis-0.94.13.tar.gz
+_md5_=160eb7883fc10fcb6d5ad8d4a0d9a057

@@ -1,0 +1,14 @@
+BDEPEND=virtual/pkgconfig doc? ( dev-tex/latex2html dev-texlive/texlive-latexextra virtual/latex-base ) test? ( sci-libs/coinor-netlib sci-libs/coinor-sample )
+DEFINED_PHASES=compile configure install prepare test
+DEPEND=sci-libs/coinor-cgl:= sci-libs/coinor-clp:= sci-libs/coinor-dylp:= sci-libs/coinor-osi:= sci-libs/coinor-utils:= sci-libs/coinor-vol:= glpk? ( sci-mathematics/glpk:= )
+DESCRIPTION=COIN-OR solver for mixed-integer linear programs
+EAPI=8
+HOMEPAGE=https://github.com/coin-or/SYMPHONY/
+IUSE=doc glpk test
+KEYWORDS=~amd64 ~x86
+LICENSE=EPL-1.0
+RDEPEND=sci-libs/coinor-cgl:= sci-libs/coinor-clp:= sci-libs/coinor-dylp:= sci-libs/coinor-osi:= sci-libs/coinor-utils:= sci-libs/coinor-vol:= glpk? ( sci-mathematics/glpk:= )
+RESTRICT=!test? ( test )
+SLOT=0/3
+SRC_URI=https://github.com/coin-or/SYMPHONY/archive/releases/5.7.3.tar.gz -> coinor-symphony-5.7.3.tar.gz
+_md5_=657b0e74248c36149638e30baf49d456

@@ -1,0 +1,9 @@
+DEFINED_PHASES=-
+DESCRIPTION=COIN-OR Sample models
+EAPI=8
+HOMEPAGE=https://github.com/coin-or-tools/Data-Sample/
+KEYWORDS=~amd64 ~loong ~riscv ~x86
+LICENSE=EPL-1.0
+SLOT=0
+SRC_URI=https://github.com/coin-or-tools/Data-Sample/archive/releases/1.2.13.tar.gz -> coinor-sample-1.2.13.tar.gz
+_md5_=8b527765a3291d81a919849e41503f88

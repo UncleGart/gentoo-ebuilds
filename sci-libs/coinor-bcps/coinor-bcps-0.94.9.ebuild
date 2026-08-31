@@ -1,0 +1,59 @@
+# Copyright 1999-2026 Gentoo Authors
+# Distributed under the terms of the GNU General Public License v2
+
+EAPI=8
+
+MY_PN=CHiPPS-BiCePS
+
+DESCRIPTION="COIN-OR BiCePS data handling library"
+HOMEPAGE="https://github.com/coin-or/CHiPPS-BiCePS/"
+SRC_URI="https://github.com/coin-or/${MY_PN}/archive/releases/${PV}.tar.gz -> ${P}.tar.gz"
+
+S="${WORKDIR}/${MY_PN}-releases-${PV}/Bcps"
+
+LICENSE="EPL-1.0"
+SLOT="0/1"
+KEYWORDS="~amd64 ~x86"
+IUSE="doc test"
+RESTRICT="!test? ( test )"
+
+RDEPEND="
+	>=sci-libs/coinor-alps-1.5.12:=
+	sci-libs/coinor-utils:="
+DEPEND="${RDEPEND}"
+BDEPEND="
+	virtual/pkgconfig
+	doc? ( app-text/doxygen[dot] )
+	test? (
+		sci-libs/coinor-cgl
+		sci-libs/coinor-sample
+	)"
+
+src_prepare() {
+	default
+	# Prevent unneeded call to pkg-config that needs ${ED}'s in path.
+	sed -i '/--libs.*addlibs.txt/d' Makefile.in || die
+}
+
+src_configure() {
+	econf $(use_with doc dot)
+}
+
+src_compile() {
+	emake all $(usex doc doxydoc '')
+}
+
+src_test() {
+	# Needed given "make check" is a noop and it skips the working one.
+	emake test
+}
+
+src_install() {
+	default
+	dodoc -r examples
+	use doc && dodoc -r doxydoc/html
+
+	# Duplicate or irrelevant files.
+	rm -r "${ED}"/usr/share/coin/doc || die
+	find "${ED}" -name '*.la' -delete || die
+}
