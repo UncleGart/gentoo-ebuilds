@@ -1,0 +1,9 @@
+DEFINED_PHASES=-
+DESCRIPTION=A tool for generating random C programs. It's handy for stress-testing compilers.
+EAPI=8
+HOMEPAGE=https://github.com/csmith-project/csmith/
+KEYWORDS=~amd64
+LICENSE=BSD-2
+SLOT=0
+SRC_URI=https://github.com/csmith-project/csmith/archive/refs/heads/csmith-2.3.zip
+_md5_=1452d6bc4ac2371421c070aec825a42b

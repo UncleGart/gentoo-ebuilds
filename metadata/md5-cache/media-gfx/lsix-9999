@@ -1,0 +1,13 @@
+BDEPEND=>=dev-vcs/git-1.8.2.1[curl]
+DEFINED_PHASES=install unpack
+DESCRIPTION=Image viewer for terminal that use sixel graphics
+EAPI=7
+HOMEPAGE=https://github.com/hackerb9/lsix
+INHERIT=git-r3
+IUSE=djvu jpeg jpeg2k png svg tiff webp
+LICENSE=GPL-3+
+PROPERTIES=live
+RDEPEND=media-gfx/imagemagick[truetype,djvu?,jpeg?,jpeg2k?,png?,svg?,tiff?,webp?]
+SLOT=0
+_eclasses_=git-r3	e6c2f983e006e805160436c75a0c1562
+_md5_=7ef51efd829b722062c3a46a942eda54
