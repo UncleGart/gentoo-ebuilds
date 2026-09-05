@@ -1,0 +1,15 @@
+--- a/compiler/rustc_codegen_llvm/src/llvm_util.rs
++++ b/compiler/rustc_codegen_llvm/src/llvm_util.rs
+@@ -288,6 +288,12 @@
+                 )),
+                 "avx10.1" if major < 22 => Some(LLVMFeature::new("avx10.1-512")),
+                 "avx10.2" if major < 22 => Some(LLVMFeature::new("avx10.2-512")),
++                // Intel withdrew AMX-TF32 from the x86 ISA specification; LLVM 23
++                // removed the `amx-tf32` subtarget feature (and the
++                // `llvm.x86.tmmultf32ps{,.internal}` intrinsics) accordingly. Asking
++                // LLVM about a feature it does not know is a fatal error, so filter it
++                // out here the same way `tme` is filtered out on AArch64.
++                "amx-tf32" if major >= 23 => None,
+                 "apxf" => Some(LLVMFeature::with_dependencies(
+                     "egpr",
+                     smallvec![

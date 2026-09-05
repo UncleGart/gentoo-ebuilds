@@ -1,0 +1,30 @@
+--- a/compiler/rustc_llvm/llvm-wrapper/PassWrapper.cpp
++++ b/compiler/rustc_llvm/llvm-wrapper/PassWrapper.cpp
+@@ -96,6 +96,27 @@
+ #else
+   const MCSubtargetInfo &MCInfo = *Target->getMCSubtargetInfo();
+ #endif
++  // `MCSubtargetInfo::checkFeatures` calls `report_fatal_error` when the name
++  // is not in this target's feature table at all. That happens whenever LLVM
++  // retires a subtarget feature that rustc still lists in `rust_target_features`
++  // (e.g. x86 `amx-tf32`, dropped in LLVM 23), and it takes down every rustc
++  // invocation, including `--print=cfg`. Probe the table first and report the
++  // feature as simply unavailable instead of aborting.
++  const ArrayRef<SubtargetFeatureKV> FeatTable =
++      MCInfo.getAllProcessorFeatures();
++  bool Known = false;
++  for (const SubtargetFeatureKV &Feat : FeatTable) {
++#if LLVM_VERSION_GE(23, 0)
++    if (StringRef(Feat.key()) == Feature) {
++#else
++    if (StringRef(Feat.Key) == Feature) {
++#endif
++      Known = true;
++      break;
++    }
++  }
++  if (!Known)
++    return false;
+   return MCInfo.checkFeatures(std::string("+") + Feature);
+ }
+ 

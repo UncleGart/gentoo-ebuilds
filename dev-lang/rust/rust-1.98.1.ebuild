@@ -7,7 +7,7 @@ EAPI=8
 
 # Bump notes: https://wiki.gentoo.org/wiki/Project:Rust/Rust_bump
 
-LLVM_COMPAT=( 22 )
+LLVM_COMPAT=( 23 )
 PYTHON_COMPAT=( python3_{13..14} )
 
 # Patches are kept in rust-patches.git, see its README.rst for the versioning
@@ -265,6 +265,17 @@ pkg_setup() {
 	pre_build_checks
 	python-any-r1_pkg_setup
 
+	if ! [[ -v _RUST_LLVM_MAP[${SLOT}] ]] ; then
+		die "${SLOT} is missing from rust.eclass's RUST_LLVM_MAP! Please fix the eclass."
+	fi
+	local found_slot i
+	for (( i = 0; i < ${#_RUST_SLOTS_ORDERED[@]} ; i++ )) ; do
+		[[ ${_RUST_SLOTS_ORDERED[i]} == ${SLOT} ]] && found_slot=1
+	done
+	if ! [[ -v found_slot ]] ; then
+		die "${SLOT} is missing from rust.eclass's _RUST_SLOTS_ORDERED! Please fix the eclass."
+	fi
+
 	#export LIBGIT2_NO_PKG_CONFIG=1 #749381
 	if tc-is-cross-compiler; then
 		export PKG_CONFIG_ALLOW_CROSS=1
@@ -358,12 +369,13 @@ src_unpack() {
 	else
 		default
 	fi
+	rm "${WORKDIR}/rust-patches-${RUST_PATCH_VER}/1.96.0-compiler-musl-dynamic-linking.patch"
 }
 
 src_prepare() {
-	# Commit patches to the appropriate branch in proj/rust-patches.git
-	# then cut a new tag / tarball. Don't add patches to ${FILESDIR}
 	PATCHES=(
+		"${FILESDIR}/1.98.1-llvm23-drop-amx-tf32.patch"
+		"${FILESDIR}/1.98.1-llvm23-hasfeature-nonfatal.patch"
 		"${WORKDIR}/rust-patches-${RUST_PATCH_VER}/"
 	)
 
