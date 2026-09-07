@@ -1,0 +1,19 @@
+--- a/llvm/lib/Target/RISCV/CMakeLists.txt
++++ b/llvm/lib/Target/RISCV/CMakeLists.txt
+@@ -109,6 +109,16 @@
+   RISCV
+   )
+ 
++# Gentoo/x32: cc1plus is an x32 binary and can address at most ~3.97 GiB.
++# LLVM 23 generates an ~88 MB RISCVGenGlobalISel.inc, which makes this one
++# translation unit need 4039 MiB at -O2 and abort with
++#   virtual memory exhausted: Cannot allocate memory
++# -O1 brings it down to 2310 MiB. Source-level COMPILE_OPTIONS are emitted
++# after CMAKE_CXX_FLAGS, so this -O1 overrides the global -O2 for this file
++# only; every other file in the tree keeps its normal optimisation level.
++set_source_files_properties(GISel/RISCVInstructionSelector.cpp
++  PROPERTIES COMPILE_OPTIONS "-O1")
++
+ add_subdirectory(AsmParser)
+ add_subdirectory(Disassembler)
+ add_subdirectory(MCTargetDesc)

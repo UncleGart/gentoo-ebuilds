@@ -1,0 +1,29 @@
+--- a/library/unwind/src/libunwind.rs	2026-09-07 01:04:44.624611381 -0400
++++ b/library/unwind/src/libunwind.rs	2026-09-07 01:04:44.624611381 -0400
+@@ -27,7 +27,25 @@
+ #[cfg(target_arch = "x86")]
+ pub const unwinder_private_data_size: usize = 5;
+ 
+-#[cfg(all(target_arch = "x86_64", not(any(target_os = "windows", target_os = "cygwin"))))]
++// On x86-64 the unwinder's `_Unwind_Word` is 64 bits wide even for the x32 ABI
++// (`word_mode` follows TARGET_64BIT, not the pointer width), while Rust models
++// `_Unwind_Word` as `*const u8`. On x32 that makes Rust's `_Unwind_Exception`
++// 8 bytes too short, so the unwinder's stores to `private_1`/`private_2` (at
++// offsets 16 and 24) run past the end of the struct and corrupt whatever
++// follows it. Reserve five 32-bit slots so the struct is the same 32 bytes
++// libgcc uses, matching what the aarch64 ILP32 targets already do.
++#[cfg(all(
++    target_arch = "x86_64",
++    target_pointer_width = "32",
++    not(any(target_os = "windows", target_os = "cygwin"))
++))]
++pub const unwinder_private_data_size: usize = 5;
++
++#[cfg(all(
++    target_arch = "x86_64",
++    target_pointer_width = "64",
++    not(any(target_os = "windows", target_os = "cygwin"))
++))]
+ pub const unwinder_private_data_size: usize = 2;
+ 
+ #[cfg(all(target_arch = "x86_64", any(target_os = "windows", target_os = "cygwin")))]

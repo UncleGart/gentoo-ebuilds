@@ -1,0 +1,64 @@
+--- a/llvm/lib/Transforms/Scalar/LoopStrengthReduce.cpp	2026-09-07 02:32:29.164535255 -0400
++++ b/llvm/lib/Transforms/Scalar/LoopStrengthReduce.cpp	2026-09-07 02:32:29.174535255 -0400
+@@ -5824,6 +5824,25 @@
+   return IP;
+ }
+ 
++/// Returns true if an ICmpZero use whose original operands are pointers may
++/// have its comparison rewritten in the integer domain, using \p IntTy as the
++/// arithmetic type, instead of materialising inttoptr casts.
++///
++/// This is only sound when \p IntTy is exactly as wide as \p PtrTy. LSR may
++/// choose an arithmetic type wider than the pointer -- for example an i64
++/// induction variable on x86_64-unknown-linux-gnux32, where pointers are 32
++/// bits. There, converting the expanded integer back to a pointer truncates,
++/// so the original pointer comparison only inspects the low bits. Comparing at
++/// the wider integer width instead would inspect bits the original comparison
++/// ignored, changing the loop's exit condition and turning a finite loop into
++/// a runaway one.
++static bool canRewritePtrICmpInIntDomain(const DataLayout &DL, Type *PtrTy,
++                                         Type *IntTy) {
++  assert(PtrTy->isPointerTy() && "expected a pointer type");
++  return IntTy->isIntegerTy() &&
++         IntTy->getIntegerBitWidth() == DL.getPointerTypeSizeInBits(PtrTy);
++}
++
+ /// Emit instructions for the leading candidate expression for this LSRUse (this
+ /// is called "expanding").
+ Value *LSRInstance::Expand(const LSRUse &LU, const LSRFixup &LF,
+@@ -5854,10 +5873,13 @@
+   // This is the type to do integer arithmetic in.
+   Type *IntTy = SE.getEffectiveSCEVType(Ty);
+   // For ICmpZero with pointer-typed operands, keep the comparison in the
+-  // integer domain to avoid generating inttoptr casts. Use IntTy (the
+-  // formula's arithmetic width) so that both icmp operands match even when
+-  // the IV is wider than the pointer.
+-  if (LU.Kind == LSRUse::ICmpZero && OpTy->isPointerTy()) {
++  // integer domain to avoid generating inttoptr casts. This is only valid
++  // when IntTy (the formula's arithmetic width) is exactly as wide as the
++  // pointer; if the IV is wider, the inttoptr the comparison would otherwise
++  // go through truncates, and comparing at the wider width would change the
++  // loop's exit condition. See canRewritePtrICmpInIntDomain().
++  if (LU.Kind == LSRUse::ICmpZero && OpTy->isPointerTy() &&
++      canRewritePtrICmpInIntDomain(SE.getDataLayout(), OpTy, IntTy)) {
+     OpTy = IntTy;
+     Ty = IntTy;
+   }
+@@ -6160,11 +6182,14 @@
+     Value *FullV = Expand(LU, LF, F, LF.UserInst->getIterator(), DeadInsts);
+ 
+     // If this is reuse-by-noop-cast, insert the noop cast.
+-    // For ICmpZero with pointer operands, Expand() already set both operands
+-    // in integer domain, so no cast is needed here.
++    // For ICmpZero with pointer operands, Expand() may already have set both
++    // operands in the integer domain, in which case no cast is needed here.
++    // It only does so when the arithmetic width matches the pointer width.
+     Type *OpTy = LF.OperandValToReplace->getType();
+     if (FullV->getType() != OpTy &&
+-        !(LU.Kind == LSRUse::ICmpZero && OpTy->isPointerTy())) {
++        !(LU.Kind == LSRUse::ICmpZero && OpTy->isPointerTy() &&
++          canRewritePtrICmpInIntDomain(SE.getDataLayout(), OpTy,
++                                       FullV->getType()))) {
+       Instruction *Cast =
+           CastInst::Create(CastInst::getCastOpcode(FullV, false, OpTy, false),
+                            FullV, OpTy, "tmp", LF.UserInst->getIterator());
