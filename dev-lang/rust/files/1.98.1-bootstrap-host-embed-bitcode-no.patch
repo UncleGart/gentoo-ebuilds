@@ -1,0 +1,23 @@
+--- a/src/bootstrap/src/core/builder/cargo.rs	2026-09-10 12:06:56.352882969 -0400
++++ b/src/bootstrap/src/core/builder/cargo.rs	2026-09-10 12:06:56.382882972 -0400
+@@ -1074,6 +1074,20 @@
+             hostflags.arg(format!("-Ctarget-feature={sign}crt-static"));
+         }
+ 
++        // Build scripts and their dependencies are always compiled by the stage0
++        // compiler (see `src/bootstrap/src/bin/rustc.rs`), and Cargo's default
++        // build-override compiles them at `-Copt-level=0`. `library/Cargo.toml`
++        // sets `-Cembed-bitcode=yes` for the whole `dist` profile, and Cargo
++        // applies profile rustflags to host units too, so those host units end up
++        // asking for a ThinLTO buffer at O0.
++        //
++        // That combination trips a fatal error in stage0 compilers linked against
++        // LLVM 23 that predate the `AssignGUIDPass` fix ("expected function
++        // definition <name> to have an associated value info"). Nothing links
++        // host build artifacts with LTO, so just restore Cargo's own default here
++        // -- `RUSTC_HOST_FLAGS` is appended after Cargo's arguments, so this wins.
++        hostflags.arg("-Cembed-bitcode=no");
++
+         // `rustc` needs to know the remapping scheme, in order to know how to reverse it (unremap)
+         // later. Two env vars are set and made available to the compiler
+         //

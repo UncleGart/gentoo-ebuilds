@@ -374,8 +374,10 @@ src_unpack() {
 
 src_prepare() {
 	PATCHES=(
+		"${FILESDIR}/1.98.1-bootstrap-host-embed-bitcode-no.patch"
 		"${FILESDIR}/1.98.1-llvm23-drop-amx-tf32.patch"
 		"${FILESDIR}/1.98.1-llvm23-hasfeature-nonfatal.patch"
+		"${FILESDIR}/1.98.1-llvm23-assign-guid.patch"
 		"${FILESDIR}/1.98.1-x32-unwinder-private-data-size.patch"
 		"${WORKDIR}/rust-patches-${RUST_PATCH_VER}/"
 	)

@@ -1,0 +1,48 @@
+--- a/compiler/rustc_llvm/llvm-wrapper/PassWrapper.cpp	2026-09-10 12:06:02.842883403 -0400
++++ b/compiler/rustc_llvm/llvm-wrapper/PassWrapper.cpp	2026-09-10 12:06:19.072883237 -0400
+@@ -58,6 +58,9 @@
+ 
+ // Conditional includes prevent clang-format from fully sorting the list,
+ // so if any are needed, keep them separate down here.
++#if LLVM_VERSION_GE(23, 0)
++#include "llvm/Transforms/Utils/AssignGUID.h"
++#endif
+ 
+ using namespace llvm;
+ 
+@@ -946,6 +949,23 @@
+   if (NeedThinLTOBufferPasses) {
+     MPM.addPass(CanonicalizeAliasesPass());
+     MPM.addPass(NameAnonGlobalPass());
++#if LLVM_VERSION_GE(23, 0)
++    // This block open-codes LLVM's private
++    // `PassBuilder::addRequiredLTOPreLinkPasses()`, which gained a third pass
++    // in LLVM 23. Global values now carry their GUID as `!guid` metadata
++    // instead of it being recomputed from the name on demand, and
++    // `AssignGUIDPass` is what attaches it. Without it the module summary
++    // index is built from unassigned GUIDs while the bitcode writer looks up
++    // the name-derived fallback, so the two disagree and
++    // `writePerModuleGlobalValueSummary()` aborts the process with
++    // "expected function definition <name> to have an associated value info."
++    //
++    // The default pipelines for `-Copt-level > 0` call the real helper via
++    // `buildThinLTOPreLinkDefaultPipeline()`, which is why this only bites at
++    // `-Copt-level=0` (and under `-Cno-prepopulate-passes`) when a ThinLTO
++    // buffer is requested, i.e. `-Cembed-bitcode=yes`.
++    MPM.addPass(AssignGUIDPass());
++#endif
+   }
+   // For `-Copt-level=0`, and the pre-link fat/thin LTO stages.
+   if (ThinLTOBufferRef && *ThinLTOBufferRef == nullptr) {
+@@ -1485,6 +1505,11 @@
+         PB.registerLoopAnalyses(LAM);
+         PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+         ModulePassManager MPM;
++#if LLVM_VERSION_GE(23, 0)
++        // See the comment in `LLVMRustOptimize`: on LLVM 23 the summary
++        // writer requires GUIDs to have been assigned already.
++        MPM.addPass(AssignGUIDPass());
++#endif
+         MPM.addPass(ThinLTOBitcodeWriterPass(OS, nullptr));
+         MPM.run(*unwrap(M), MAM);
+       } else {
