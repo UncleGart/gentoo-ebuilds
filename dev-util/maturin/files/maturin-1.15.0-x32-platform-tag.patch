@@ -1,0 +1,125 @@
+--- a/src/auditwheel/linux.rs
++++ b/src/auditwheel/linux.rs
+@@ -313,6 +313,12 @@ fn auditwheel_rs(
+     if !target.is_linux() || platform_tag == Some(PlatformTag::Linux) {
+         return Ok((Policy::default(), false));
+     }
++    if target.is_x32() {
++        // manylinux and musllinux policies don't cover x32: the x86_64 policies
++        // assume 64-bit pointers and the i686 ones the i386 instruction set.
++        // Requesting such a tag explicitly is rejected in `resolve_platform_tags`.
++        return Ok((Policy::default(), false));
++    }
+     let path = &artifact.path;
+     let arch = target.target_arch().to_string();
+     let mut file = File::open(path).map_err(AuditWheelError::IoError)?;
+diff --git a/src/build_context/builder.rs b/src/build_context/builder.rs
+index 9941219..69c3cc2 100644
+--- a/src/build_context/builder.rs
++++ b/src/build_context/builder.rs
+@@ -536,6 +536,18 @@ fn resolve_platform_tags(
+             .collect()
+     };
+ 
++    if target.is_x32()
++        && let Some(platform_tag) = platform_tags
++            .iter()
++            .find(|platform_tag| **platform_tag != PlatformTag::Linux)
++    {
++        bail!(
++            "{platform_tag} is not available for the x32 target {target}, \
++             there is no manylinux or musllinux policy for x32. \
++             Use `--compatibility linux` instead."
++        );
++    }
++
+     for platform_tag in &platform_tags {
+         if !platform_tag.is_supported() {
+             eprintln!("⚠️  Warning: {platform_tag} is unsupported by the Rust compiler.");
+diff --git a/src/target/mod.rs b/src/target/mod.rs
+index a1b0450..2421348 100644
+--- a/src/target/mod.rs
++++ b/src/target/mod.rs
+@@ -367,6 +367,18 @@ impl Target {
+ 
+     /// Returns the platform architecture
+     pub fn get_platform_arch(&self) -> Result<String> {
++        if self.is_x32() {
++            // x32 is the x86_64 instruction set with 32-bit pointers, it is *not* i686.
++            // But wheel tags have no separate name for it: the interpreter reports
++            // `linux-x86_64` from `sysconfig.get_platform()`, and `packaging.tags`
++            // (used by pip, installer and gpep517), setuptools' bdist_wheel and
++            // meson-python all map a 32-bit interpreter on `linux-x86_64` to the
++            // `linux_i686` platform tag. Use the same tag so the wheel is installable
++            // by the interpreter it was built for. Note this only concerns the tag
++            // string; the target is still treated as x86_64 everywhere else, and
++            // x32 wheels never get a manylinux/musllinux tag (see `auditwheel_rs`).
++            return Ok("i686".to_string());
++        }
+         if self.cross_compiling {
+             return Ok(self.arch.to_string());
+         }
+@@ -499,6 +511,10 @@ impl Target {
+ 
+     /// Returns the oldest possible Manylinux tag for this architecture
+     pub fn get_minimum_manylinux_tag(&self) -> PlatformTag {
++        if self.is_x32() {
++            // There is no manylinux policy for x32
++            return PlatformTag::Linux;
++        }
+         match self.arch {
+             Arch::Aarch64 | Arch::Armv7L | Arch::Powerpc64 | Arch::Powerpc64Le | Arch::S390X => {
+                 PlatformTag::manylinux2014()
+@@ -536,6 +552,9 @@ impl Target {
+ 
+     /// Returns whether the platform is 64 bit or 32 bit
+     pub fn pointer_width(&self) -> usize {
++        if self.is_x32() {
++            return 32;
++        }
+         match self.arch {
+             Arch::Aarch64
+             | Arch::Powerpc64
+@@ -613,6 +632,13 @@ impl Target {
+         self.env
+     }
+ 
++    /// Returns true if the target is the x32 ABI, i.e. the x86_64 instruction set
++    /// with 32-bit pointers (`x86_64-unknown-linux-gnux32`)
++    #[inline]
++    pub fn is_x32(&self) -> bool {
++        self.arch == Arch::X86_64 && self.env == Environment::Gnux32
++    }
++
+     /// Returns true if the current platform is linux
+     #[inline]
+     pub fn is_linux(&self) -> bool {
+@@ -842,3 +868,25 @@ pub(crate) fn detect_target_from_cross_python(python: &PathBuf) -> Option<Target
+     }
+     None
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn test_x32() {
++        let x32 = Target::from_resolved_target_triple("x86_64-unknown-linux-gnux32").unwrap();
++        assert!(x32.is_x32());
++        // x32 keeps the x86_64 instruction set, but has 32-bit pointers
++        assert_eq!(x32.target_arch(), Arch::X86_64);
++        assert_eq!(x32.pointer_width(), 32);
++        // Matches the tag `packaging.tags` expects for a 32-bit linux-x86_64 interpreter
++        assert_eq!(x32.get_platform_arch().unwrap(), "i686");
++        assert_eq!(x32.get_minimum_manylinux_tag(), PlatformTag::Linux);
++
++        let x86_64 = Target::from_resolved_target_triple("x86_64-unknown-linux-gnu").unwrap();
++        assert!(!x86_64.is_x32());
++        assert_eq!(x86_64.pointer_width(), 64);
++        assert_eq!(x86_64.get_platform_arch().unwrap(), "x86_64");
++    }
++}
+-- 
+2.55.0
+

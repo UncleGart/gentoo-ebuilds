@@ -1,0 +1,11 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -139,8 +139,6 @@
+ version = "3.0"
+ features = [
+     "gzip",
+-    "platform-verifier",
+-    "rustls",
+     "socks-proxy",
+ ]
+ default-features = false
