@@ -7,7 +7,7 @@ EAPI=8
 
 # Bump notes: https://wiki.gentoo.org/wiki/Project:Rust/Rust_bump
 
-LLVM_COMPAT=( 22 )
+LLVM_COMPAT=( 23 )
 PYTHON_COMPAT=( python3_{13..14} )
 
 # Patches are kept in rust-patches.git, see its README.rst for the versioning
@@ -22,7 +22,7 @@ PYTHON_COMPAT=( python3_{13..14} )
 RUST_MAX_VER=${PV%%_*}
 RUST_PV=${PV%%_p*}
 RUST_P=${PN}-${RUST_PV}
-[[ -z ${RUST_PATCH_VER} ]] && RUST_PATCH_VER=1.97.1
+[[ -z ${RUST_PATCH_VER} ]] && RUST_PATCH_VER=1.98.1
 
 if [[ ${PV} == *9999* ]]; then
 	# Update this as new `beta` releases come out.
@@ -33,7 +33,7 @@ else
 	RUST_MIN_VER="$(ver_cut 1).$(($(ver_cut 2) - 1)).0"
 fi
 
-inherit check-reqs estack flag-o-matic llvm-r1 multiprocessing optfeature
+inherit check-reqs estack flag-o-matic llvm-r2 multiprocessing optfeature
 inherit multilib multilib-build python-any-r1 rust rust-toolchain toolchain-funcs
 inherit verify-sig
 
@@ -265,6 +265,17 @@ pkg_setup() {
 	pre_build_checks
 	python-any-r1_pkg_setup
 
+	if ! [[ -v _RUST_LLVM_MAP[${SLOT}] ]] ; then
+		die "${SLOT} is missing from rust.eclass's RUST_LLVM_MAP! Please fix the eclass."
+	fi
+	local found_slot i
+	for (( i = 0; i < ${#_RUST_SLOTS_ORDERED[@]} ; i++ )) ; do
+		[[ ${_RUST_SLOTS_ORDERED[i]} == ${SLOT} ]] && found_slot=1
+	done
+	if ! [[ -v found_slot ]] ; then
+		die "${SLOT} is missing from rust.eclass's _RUST_SLOTS_ORDERED! Please fix the eclass."
+	fi
+
 	#export LIBGIT2_NO_PKG_CONFIG=1 #749381
 	if tc-is-cross-compiler; then
 		export PKG_CONFIG_ALLOW_CROSS=1
@@ -281,7 +292,7 @@ pkg_setup() {
 	fi
 
 	if use system-llvm; then
-		llvm-r1_pkg_setup
+		llvm-r2_pkg_setup
 
 		local llvm_config="$(get_llvm_prefix)/bin/llvm-config"
 		if use abi_x86_x32; then
@@ -358,14 +369,19 @@ src_unpack() {
 	else
 		default
 	fi
-	rm "${WORKDIR}/rust-patches-${RUST_PATCH_VER}/1.96.0-compiler-musl-dynamic-linking.patch"
 }
 
 src_prepare() {
 	# Commit patches to the appropriate branch in proj/rust-patches.git
 	# then cut a new tag / tarball. Don't add patches to ${FILESDIR}
 	PATCHES=(
-		"${WORKDIR}/rust-patches-${RUST_PATCH_VER}/"
+		"${FILESDIR}"/0001-Let-environment-variables-override-some-default-CPUs.patch
+		"${FILESDIR}"/0003-bootstrap-Workaround-for-system-stage0.patch
+		"${FILESDIR}"/0004-compiler-Change-LLVM-targets.patch
+		"${FILESDIR}/1.99.0-llvm23-hasfeature-nonfatal.patch"
+		"${FILESDIR}/1.99.0-x32-unwinder-private-data-size.patch"
+		"${FILESDIR}/1.99.0-compiler-musl-dynamic-linking.patch"
+		"${WORKDIR}/rust-patches-${RUST_PATCH_VER}/1.89.0-compiler-link-with-system-libs-unconditionally.patch"
 	)
 
 	if use lto && tc-is-clang && ! tc-ld-is-lld && ! tc-ld-is-mold; then

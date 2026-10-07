@@ -1,0 +1,37 @@
+Subject: [PATCH] unwind: size _Unwind_Exception correctly for x86_64 x32
+
+libgcc's _Unwind_Exception is 32 bytes on x32 (_Unwind_Word is 64-bit there),
+Rust's is 24, so the unwinder's store to private_2 at offset 24 overruns it.
+Rebased from 1.98.1-x32-unwinder-private-data-size.patch: 1.99 moved the
+constant from libunwind.rs into a cfg_select! in types.rs. Still unfixed
+upstream as of 1.99.0 and rust-lang/rust master (2026-10-07).
+
+diff --git a/library/unwind/src/types.rs b/library/unwind/src/types.rs
+index 7634052..3bf42f3 100644
+--- a/library/unwind/src/types.rs
++++ b/library/unwind/src/types.rs
+@@ -21,7 +21,23 @@ pub type _Unwind_Word = *const u8;
+ 
+ pub const unwinder_private_data_size: usize = cfg_select! {
+     target_arch = "x86" => 5,
+-    all(target_arch = "x86_64", not(any(target_os = "windows", target_os = "cygwin"))) => 2,
++    // On x86-64 the unwinder's `_Unwind_Word` is 64 bits wide even for the x32 ABI
++    // (`word_mode` follows TARGET_64BIT, not the pointer width), while Rust models
++    // `_Unwind_Word` as `*const u8`. On x32 that makes Rust's `_Unwind_Exception`
++    // 8 bytes too short, so the unwinder's stores to `private_1`/`private_2` (at
++    // offsets 16 and 24) run past the end of the struct and corrupt whatever
++    // follows it. Reserve five 32-bit slots so the struct is the same 32 bytes
++    // libgcc uses, matching what the aarch64 ILP32 targets already do.
++    all(
++        target_arch = "x86_64",
++        target_pointer_width = "32",
++        not(any(target_os = "windows", target_os = "cygwin"))
++    ) => 5,
++    all(
++        target_arch = "x86_64",
++        target_pointer_width = "64",
++        not(any(target_os = "windows", target_os = "cygwin"))
++    ) => 2,
+     all(target_arch = "x86_64", any(target_os = "windows", target_os = "cygwin")) => 6,
+     all(target_arch = "arm", not(target_vendor = "apple")) => 20,
+     all(target_arch = "arm", target_vendor = "apple") => 5,
