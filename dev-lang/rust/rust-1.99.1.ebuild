@@ -8,7 +8,7 @@ EAPI=8
 # Bump notes: https://wiki.gentoo.org/wiki/Project:Rust/Rust_bump
 
 LLVM_COMPAT=( 23 )
-PYTHON_COMPAT=( python3_{13..14} )
+PYTHON_COMPAT=( python3_{12..15} )
 
 # Patches are kept in rust-patches.git, see its README.rst for the versioning
 # scheme.
@@ -17,7 +17,7 @@ PYTHON_COMPAT=( python3_{13..14} )
 # in the ebuild for changes that don't require a revbump.
 #
 # Uncomment this line when the ebuild needs a patchset update but no revbump.
-# RUST_PATCH_VER=${PV}-1
+RUST_PATCH_VER=1.98.1
 
 RUST_MAX_VER=${PV%%_*}
 RUST_PV=${PV%%_p*}
@@ -26,14 +26,14 @@ RUST_P=${PN}-${RUST_PV}
 
 if [[ ${PV} == *9999* ]]; then
 	# Update this as new `beta` releases come out.
-	RUST_MIN_VER="1.95.0"
+	RUST_MIN_VER="1.93.0"
 elif [[ ${PV} == *beta* ]]; then
 	RUST_MIN_VER="$(ver_cut 1).$(($(ver_cut 2) - 1)).0"
 else
 	RUST_MIN_VER="$(ver_cut 1).$(($(ver_cut 2) - 1)).0"
 fi
 
-inherit check-reqs estack flag-o-matic llvm-r1 multiprocessing optfeature
+inherit check-reqs estack flag-o-matic llvm-r2 multiprocessing optfeature
 inherit multilib multilib-build python-any-r1 rust rust-toolchain toolchain-funcs
 inherit verify-sig
 
@@ -276,7 +276,7 @@ pkg_setup() {
 		die "${SLOT} is missing from rust.eclass's _RUST_SLOTS_ORDERED! Please fix the eclass."
 	fi
 
-	#export LIBGIT2_NO_PKG_CONFIG=1 #749381
+	export LIBGIT2_NO_PKG_CONFIG=1 #749381
 	if tc-is-cross-compiler; then
 		export PKG_CONFIG_ALLOW_CROSS=1
 		export PKG_CONFIG_PATH="${ROOT}/usr/$(get_libdir)/pkgconfig"
@@ -292,7 +292,7 @@ pkg_setup() {
 	fi
 
 	if use system-llvm; then
-		llvm-r1_pkg_setup
+		llvm-r2_pkg_setup
 
 		local llvm_config="$(get_llvm_prefix)/bin/llvm-config"
 		if use abi_x86_x32; then
@@ -369,17 +369,19 @@ src_unpack() {
 	else
 		default
 	fi
-	rm "${WORKDIR}/rust-patches-${RUST_PATCH_VER}/1.96.0-compiler-musl-dynamic-linking.patch"
 }
 
 src_prepare() {
+	# Commit patches to the appropriate branch in proj/rust-patches.git
+	# then cut a new tag / tarball. Don't add patches to ${FILESDIR}
 	PATCHES=(
-		"${FILESDIR}/1.98.1-bootstrap-host-embed-bitcode-no.patch"
-		"${FILESDIR}/1.98.1-llvm23-drop-amx-tf32.patch"
-		"${FILESDIR}/1.98.1-llvm23-hasfeature-nonfatal.patch"
-		"${FILESDIR}/1.98.1-llvm23-assign-guid.patch"
-		"${FILESDIR}/1.98.1-x32-unwinder-private-data-size.patch"
-		"${WORKDIR}/rust-patches-${RUST_PATCH_VER}/"
+		"${FILESDIR}"/0001-Let-environment-variables-override-some-default-CPUs.patch
+		"${FILESDIR}"/0003-bootstrap-Workaround-for-system-stage0.patch
+		"${FILESDIR}"/0004-compiler-Change-LLVM-targets.patch
+		"${FILESDIR}/1.99.0-llvm23-hasfeature-nonfatal.patch"
+		"${FILESDIR}/1.99.0-x32-unwinder-private-data-size.patch"
+		"${FILESDIR}/1.99.0-compiler-musl-dynamic-linking.patch"
+		"${WORKDIR}/rust-patches-${RUST_PATCH_VER}/1.89.0-compiler-link-with-system-libs-unconditionally.patch"
 	)
 
 	if use lto && tc-is-clang && ! tc-ld-is-lld && ! tc-ld-is-mold; then
@@ -620,7 +622,7 @@ src_configure() {
 		remap-debuginfo = true
 		lld = $(usex system-llvm false $(toml_usex rust_sysroots_wasm))
 		$(if use lto && tc-is-clang && ! tc-ld-is-mold; then
-			echo "use-lld = true"
+			echo "bootstrap-override-lld = true"
 		fi)
 		# only deny warnings if doc+wasm are NOT requested, documenting stage0 wasm std fails without it
 		# https://github.com/rust-lang/rust/issues/74976
