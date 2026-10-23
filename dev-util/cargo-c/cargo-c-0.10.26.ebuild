@@ -12,7 +12,7 @@ EAPI=8
 CRATES="
 "
 
-RUST_MIN_VER="1.92.0"
+RUST_MIN_VER="1.97.0"
 
 inherit cargo
 
@@ -37,7 +37,7 @@ SLOT="0"
 KEYWORDS="~amd64 ~arm ~arm64 ~loong ~ppc ~ppc64 ~riscv ~s390 ~sparc ~x86"
 
 RDEPEND="
-	>=dev-libs/libgit2-1.9.2:=
+	>=dev-libs/libgit2-1.9.7:=
 	dev-libs/openssl:=
 	net-libs/libssh2:=
 	net-misc/curl[ssl]
@@ -57,7 +57,7 @@ eapply_crate() {
 }
 
 src_prepare() {
-	eapply_crate openssl-sys-0.9.111 "${FILESDIR}/${PN}-0.10.18-libressl-openssl-sys-0.9.110.patch"
+	eapply_crate openssl-sys-0.9.117 "${FILESDIR}/${PN}-0.10.25-libressl-openssl-sys-0.9.117.patch"
 	default
 }
 
