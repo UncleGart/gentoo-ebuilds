@@ -6,7 +6,7 @@
 
 EAPI=8
 
-PYTHON_COMPAT=( python3_{13..14} )
+PYTHON_COMPAT=( python3_{14..15} )
 PYTHON_REQ_USE="threads(+),xml(+)"
 
 MY_PV="${PV/_alpha/.alpha}"
@@ -55,8 +55,6 @@ ADDONS_SRC=(
 	"${ADDONS_URI}/frozen-1.2.0.tar.gz"
 	# not packaged in Gentoo, https://skia.org/
 	"${ADDONS_URI}/skia-m147-ad8ecedbfdef9f4ae4b1e73347b6dd56e6637d38.tar.xz"
-	#
-	${ADDONS_URI}/box2d-3.1.1.tar.gz
 
 	"base? (
 		${ADDONS_URI}/ba2930200c9f019c2d93a8c88c651a0f-flow-engine-0.9.4.zip
@@ -96,7 +94,7 @@ KEYWORDS="~amd64 ~arm ~arm64 ~loong ~ppc64 ~riscv ~x86"
 LO_EXTS="nlpsolver scripting-beanshell scripting-javascript wiki-publisher"
 
 IUSE="accessibility base bluetooth +branding coinmp +cups custom-cflags +dbus debug eds
-googledrive gstreamer gtk kde ldap +mariadb odk pdfimport postgres qt6 system-abseil system-box2d test valgrind vulkan
+googledrive gstreamer gtk kde ldap +mariadb odk pdfimport postgres qt6 test valgrind vulkan
 $(printf 'libreoffice_extensions_%s ' ${LO_EXTS})"
 
 REQUIRED_USE="${PYTHON_REQUIRED_USE}
@@ -154,7 +152,7 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	>=dev-libs/redland-1.0.16
 	dev-libs/zxcvbn-c
 	>=dev-libs/xmlsec-1.2.35:=[nss]
-	system-box2d? ( >=games-engines/box2d-3.1.1:0 )
+	>=games-engines/box2d-3.1.0:0
 	media-gfx/fontforge
 	media-gfx/graphite2
 	media-libs/fontconfig
@@ -226,7 +224,6 @@ COMMON_DEPEND="${PYTHON_DEPS}
 		dev-qt/qtbase:6[gui,opengl,widgets]
 		dev-qt/qtmultimedia:6
 	)
-	system-abseil? ( dev-cpp/abseil-cpp:= )
 "
 # FIXME: cppunit should be moved to test conditional
 #        after everything upstream is under gbuild
@@ -535,6 +532,7 @@ src_configure() {
 		--with-external-tar="${DISTDIR}"
 		--with-lang=""
 		--with-parallelism=$(makeopts_jobs)
+		--with-system-abseil
 		--with-system-openjpeg
 		--with-tls=nss
 		--with-vendor="Gentoo Foundation"
