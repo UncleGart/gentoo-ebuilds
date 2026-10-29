@@ -1,0 +1,1057 @@
+Build sccache on x32 (x86_64-unknown-linux-gnux32) and use the system
+OpenSSL/LibreSSL for all cryptography.
+
+* TLS: reqwest, opendal's reqwest transport and redis use native-tls
+  (openssl crate) instead of rustls + aws-lc-rs. aws-lc-sys's C code assumes
+  64-bit pointers on x86_64 and fails to compile for x32.
+* JWT (sccache-dist): jsonwebtoken 9 hard-depends on ring, which has no x32
+  support. Move to jsonwebtoken 11 without a built-in backend and install an
+  OpenSSL-backed CryptoProvider (src/dist/jwt_openssl.rs): HS256/384/512,
+  RS256/384/512, PS256/384/512. Validation.insecure_disable_signature_validation
+  is gone in 11; use jwt::dangerous::insecure_decode instead.
+* redis: opendal only re-exports services::Redis for its rustls feature, so
+  depend on opendal-service-redis directly with native-tls.
+* blake3: its x86_64 assembly reads 8-byte pointers from the input pointer
+  array and segfaults (or misbehaves) on x32; enable prefer_intrinsics there.
+* thirtyfour (dev-dependency): use native-tls instead of rustls/ring.
+* Cargo.lock: jsonwebtoken 9.2.0 -> 11.1.0, adds zeroize_derive 1.5.0, drops
+  aws-lc-rs, aws-lc-sys, cmake, quinn*, rustls-platform-verifier, webpki-roots.
+
+diff -Naur a/Cargo.lock b/Cargo.lock
+--- a/Cargo.lock	2026-09-14 05:50:17.000000000 -0400
++++ b/Cargo.lock	2026-10-29 14:19:14.148897256 -0400
+@@ -201,28 +201,6 @@
+ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
+ 
+ [[package]]
+-name = "aws-lc-rs"
+-version = "1.17.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "5ec2f1fc3ec205783a5da9a7e6c1509cc69dedf09a1949e412c1e18469326d00"
+-dependencies = [
+- "aws-lc-sys",
+- "zeroize",
+-]
+-
+-[[package]]
+-name = "aws-lc-sys"
+-version = "0.41.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "1a2f9779ce85b93ab6170dd940ad0169b5766ff848247aff13bb788b832fe3f4"
+-dependencies = [
+- "cc",
+- "cmake",
+- "dunce",
+- "fs_extra",
+-]
+-
+-[[package]]
+ name = "backon"
+ version = "1.6.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -497,15 +475,6 @@
+ checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
+ 
+ [[package]]
+-name = "cmake"
+-version = "0.1.58"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "c0f78a02292a74a88ac736019ab962ece0bc380e3f977bf72e376c5d78ff0678"
+-dependencies = [
+- "cc",
+-]
+-
+-[[package]]
+ name = "cmov"
+ version = "0.5.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -977,12 +946,6 @@
+ checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
+ 
+ [[package]]
+-name = "dunce"
+-version = "1.0.5"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
+-
+-[[package]]
+ name = "either"
+ version = "1.17.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -1033,7 +996,7 @@
+ checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
+ dependencies = [
+  "libc",
+- "windows-sys 0.59.0",
++ "windows-sys 0.61.1",
+ ]
+ 
+ [[package]]
+@@ -1161,12 +1124,6 @@
+ ]
+ 
+ [[package]]
+-name = "fs_extra"
+-version = "1.3.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "42703706b716c37f96a77aea830392ad231f44c9e9a67872fa5548707e11b11c"
+-
+-[[package]]
+ name = "futures"
+ version = "0.3.30"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -1266,8 +1223,8 @@
+  "libc",
+  "log",
+  "rustversion",
+- "windows-link 0.1.3",
+- "windows-result 0.3.4",
++ "windows-link 0.2.1",
++ "windows-result 0.4.1",
+ ]
+ 
+ [[package]]
+@@ -1312,11 +1269,9 @@
+ checksum = "300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb7e904106099"
+ dependencies = [
+  "cfg-if 1.0.4",
+- "js-sys",
+  "libc",
+  "r-efi 6.0.0",
+  "rand_core 0.10.1",
+- "wasm-bindgen",
+ ]
+ 
+ [[package]]
+@@ -1605,7 +1560,6 @@
+  "tokio",
+  "tokio-rustls",
+  "tower-service",
+- "webpki-roots 0.26.2",
+ ]
+ 
+ [[package]]
+@@ -1642,7 +1596,7 @@
+  "libc",
+  "percent-encoding",
+  "pin-project-lite",
+- "socket2 0.6.5",
++ "socket2",
+  "system-configuration 0.6.1",
+  "tokio",
+  "tower-service",
+@@ -1801,7 +1755,7 @@
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "4d40460c0ce33d6ce4b0630ad68ff63d6661961c48b6dba35e5a4d81cfb48222"
+ dependencies = [
+- "socket2 0.6.5",
++ "socket2",
+  "widestring",
+  "windows-registry 0.6.1",
+  "windows-result 0.4.1",
+@@ -1969,17 +1923,17 @@
+ 
+ [[package]]
+ name = "jsonwebtoken"
+-version = "9.2.0"
++version = "11.1.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "5c7ea04a7c5c055c175f189b6dc6ba036fd62306b58c66c9f6389036c503a3f4"
++checksum = "e75fe14a82d81e5f5af639997db37d8b96045938a7ac6ab18cdbe1c7467e05e1"
+ dependencies = [
+- "base64 0.21.7",
++ "base64 0.22.1",
++ "getrandom 0.2.11",
+  "js-sys",
+- "pem 3.0.3",
+- "ring",
+  "serde",
+  "serde_json",
+- "simple_asn1",
++ "signature",
++ "zeroize",
+ ]
+ 
+ [[package]]
+@@ -2072,12 +2026,6 @@
+ ]
+ 
+ [[package]]
+-name = "lru-slab"
+-version = "0.1.2"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
+-
+-[[package]]
+ name = "matchers"
+ version = "0.1.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -2743,16 +2691,6 @@
+ 
+ [[package]]
+ name = "pem"
+-version = "3.0.3"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "1b8fcc794035347fb64beda2d3b462595dd2753e3f268d89c5aae77e8cf2c310"
+-dependencies = [
+- "base64 0.21.7",
+- "serde",
+-]
+-
+-[[package]]
+-name = "pem"
+ version = "4.0.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "d354a98a3d1251555de99e8fdd8afda05573c31b82f59063a7b0a29b5527f120"
+@@ -2987,63 +2925,6 @@
+ ]
+ 
+ [[package]]
+-name = "quinn"
+-version = "0.11.11"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "0c1a41e437b6bbd489372cd4971de128e85c855f56c57f283d20ff016cf7c0a8"
+-dependencies = [
+- "bytes",
+- "cfg_aliases",
+- "pin-project-lite",
+- "quinn-proto",
+- "quinn-udp",
+- "rustc-hash",
+- "rustls",
+- "socket2 0.5.5",
+- "thiserror 2.0.17",
+- "tokio",
+- "tracing",
+- "web-time",
+-]
+-
+-[[package]]
+-name = "quinn-proto"
+-version = "0.11.16"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "2f4bfc015262b9df63c8845072ce59068853ff5872180c2ce2f13038b970e560"
+-dependencies = [
+- "aws-lc-rs",
+- "bytes",
+- "getrandom 0.4.3",
+- "lru-slab",
+- "rand 0.10.2",
+- "rand_pcg",
+- "ring",
+- "rustc-hash",
+- "rustls",
+- "rustls-pki-types",
+- "slab",
+- "thiserror 2.0.17",
+- "tinyvec",
+- "tracing",
+- "web-time",
+-]
+-
+-[[package]]
+-name = "quinn-udp"
+-version = "0.5.15"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "35a133f956daabe89a61a685c2649f13d82d5aa4bd5d12d1277e1072a21c0694"
+-dependencies = [
+- "cfg_aliases",
+- "libc",
+- "once_cell",
+- "socket2 0.5.5",
+- "tracing",
+- "windows-sys 0.61.1",
+-]
+-
+-[[package]]
+ name = "quote"
+ version = "1.0.47"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -3112,15 +2993,6 @@
+ checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
+ 
+ [[package]]
+-name = "rand_pcg"
+-version = "0.10.2"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "caa0f4137e1c0a72f4c651489402276c8e8e1cf081f3b0ba156d2cbeef09e86a"
+-dependencies = [
+- "rand_core 0.10.1",
+-]
+-
+-[[package]]
+ name = "randomize_readdir"
+ version = "0.1.0"
+ dependencies = [
+@@ -3149,17 +3021,16 @@
+  "futures-util",
+  "itoa",
+  "log",
++ "native-tls",
+  "num-bigint",
+  "percent-encoding",
+  "pin-project-lite",
+  "rand 0.10.2",
+- "rustls",
+- "rustls-native-certs",
+  "ryu",
+  "sha1_smol",
+- "socket2 0.6.5",
++ "socket2",
+  "tokio",
+- "tokio-rustls",
++ "tokio-native-tls",
+  "tokio-util",
+  "url",
+  "xxhash-rust",
+@@ -3300,7 +3171,7 @@
+  "form_urlencoded",
+  "http",
+  "log",
+- "pem 4.0.0",
++ "pem",
+  "percent-encoding",
+  "reqsign-core",
+  "rsa",
+@@ -3391,21 +3262,20 @@
+  "http-body",
+  "http-body-util",
+  "hyper",
+- "hyper-rustls",
++ "hyper-tls",
+  "hyper-util",
+  "js-sys",
+  "log",
++ "native-tls",
+  "percent-encoding",
+  "pin-project-lite",
+- "quinn",
+- "rustls",
+  "rustls-pki-types",
+  "serde",
+  "serde_json",
+  "serde_urlencoded",
+  "sync_wrapper",
+  "tokio",
+- "tokio-rustls",
++ "tokio-native-tls",
+  "tower",
+  "tower-http",
+  "tower-service",
+@@ -3413,7 +3283,6 @@
+  "wasm-bindgen",
+  "wasm-bindgen-futures",
+  "web-sys",
+- "webpki-roots 1.0.5",
+ ]
+ 
+ [[package]]
+@@ -3444,16 +3313,12 @@
+  "once_cell",
+  "percent-encoding",
+  "pin-project-lite",
+- "quinn",
+- "rustls",
+  "rustls-pki-types",
+- "rustls-platform-verifier",
+  "serde",
+  "serde_json",
+  "sync_wrapper",
+  "tokio",
+  "tokio-native-tls",
+- "tokio-rustls",
+  "tokio-util",
+  "tower",
+  "tower-http",
+@@ -3546,12 +3411,6 @@
+ checksum = "56f7d92ca342cea22a06f2121d944b4fd82af56988c270852495420f961d4ace"
+ 
+ [[package]]
+-name = "rustc-hash"
+-version = "2.0.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "583034fd73374156e66797ed8e5b0d5690409c9226b22d87cb7f19821c05d152"
+-
+-[[package]]
+ name = "rustc_version"
+ version = "0.4.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -3579,9 +3438,7 @@
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "c0ebcbd2f03de0fc1122ad9bb24b127a5a6cd51d72604a3f3c50ac459762b6cc"
+ dependencies = [
+- "aws-lc-rs",
+  "once_cell",
+- "ring",
+  "rustls-pki-types",
+  "rustls-webpki",
+  "subtle",
+@@ -3606,44 +3463,15 @@
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "229a4a4c221013e7e1f1a043678c5cc39fe5171437c88fb47151a21e6f5b5c79"
+ dependencies = [
+- "web-time",
+  "zeroize",
+ ]
+ 
+ [[package]]
+-name = "rustls-platform-verifier"
+-version = "0.7.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "26d1e2536ce4f35f4846aa13bff16bd0ff40157cdb14cc056c7b14ba41233ba0"
+-dependencies = [
+- "core-foundation 0.10.1",
+- "core-foundation-sys",
+- "jni",
+- "log",
+- "once_cell",
+- "rustls",
+- "rustls-native-certs",
+- "rustls-platform-verifier-android",
+- "rustls-webpki",
+- "security-framework",
+- "security-framework-sys",
+- "webpki-root-certs",
+- "windows-sys 0.61.1",
+-]
+-
+-[[package]]
+-name = "rustls-platform-verifier-android"
+-version = "0.1.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "f87165f0995f63a9fbeea62b64d10b4d9d8e78ec6d7d51fb2125fda7bb36788f"
+-
+-[[package]]
+ name = "rustls-webpki"
+ version = "0.103.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "0a17884ae0c1b773f1ccd2bd4a8c72f16da897310a98b0e84bf349ad5ead92fc"
+ dependencies = [
+- "aws-lc-rs",
+  "ring",
+  "rustls-pki-types",
+  "untrusted",
+@@ -3750,6 +3578,7 @@
+  "opendal",
+  "opendal-http-transport-reqwest",
+  "opendal-layer-logging",
++ "opendal-service-redis",
+  "openssl",
+  "predicates",
+  "rand 0.8.5",
+@@ -4050,18 +3879,6 @@
+ checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
+ 
+ [[package]]
+-name = "simple_asn1"
+-version = "0.6.2"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "adc4e5204eb1910f40f9cfa375f6f05b68c3abac4b6fd879c8ff5e7ae8a0a085"
+-dependencies = [
+- "num-bigint",
+- "num-traits",
+- "thiserror 1.0.56",
+- "time",
+-]
+-
+-[[package]]
+ name = "simplelog"
+ version = "0.12.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -4086,16 +3903,6 @@
+ 
+ [[package]]
+ name = "socket2"
+-version = "0.5.5"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "7b5fac59a5cb5dd637972e5fca70daf0523c9067fcdc4842f053dae04a18f8e9"
+-dependencies = [
+- "libc",
+- "windows-sys 0.48.0",
+-]
+-
+-[[package]]
+-name = "socket2"
+ version = "0.6.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
+@@ -4546,7 +4353,7 @@
+  "mio",
+  "pin-project-lite",
+  "signal-hook-registry",
+- "socket2 0.6.5",
++ "socket2",
+  "tokio-macros",
+  "windows-sys 0.61.1",
+ ]
+@@ -5058,33 +4865,6 @@
+ ]
+ 
+ [[package]]
+-name = "webpki-root-certs"
+-version = "1.0.9"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b96554aa2acc8ccdb7e1c9a58a7a68dd5d13bccc69cd124cb09406db612a1c9b"
+-dependencies = [
+- "rustls-pki-types",
+-]
+-
+-[[package]]
+-name = "webpki-roots"
+-version = "0.26.2"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "3c452ad30530b54a4d8e71952716a212b08efd0f3562baa66c29a618b07da7c3"
+-dependencies = [
+- "rustls-pki-types",
+-]
+-
+-[[package]]
+-name = "webpki-roots"
+-version = "1.0.5"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "12bed680863276c63889429bfd6cab3b99943659923822de1c8a39c49e4d722c"
+-dependencies = [
+- "rustls-pki-types",
+-]
+-
+-[[package]]
+ name = "which"
+ version = "6.0.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -5462,6 +5242,20 @@
+ version = "1.9.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e"
++dependencies = [
++ "zeroize_derive",
++]
++
++[[package]]
++name = "zeroize_derive"
++version = "1.5.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "3c50655cbb0fe3fc43170059e702f1ce5e19b84cec58dc87b037a09935c2f328"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn 2.0.119",
++]
+ 
+ [[package]]
+ name = "zerotrie"
+diff -Naur a/Cargo.toml b/Cargo.toml
+--- a/Cargo.toml	2026-09-14 05:50:17.000000000 -0400
++++ b/Cargo.toml	2026-10-29 14:19:11.218897745 -0400
+@@ -71,7 +71,7 @@
+ ] }
+ itertools = "0.14"
+ jobserver = "0.1"
+-jwt = { package = "jsonwebtoken", version = "9", optional = true }
++jwt = { package = "jsonwebtoken", version = "11.1", optional = true, default-features = false }
+ libc = "0.2.153"
+ linked-hash-map = "0.5"
+ log = "0.4"
+@@ -81,16 +81,26 @@
+ number_prefix = "0.4"
+ object = "0.37"
+ opendal = { version = "0.58.1", optional = true, default-features = false }
+-opendal-http-transport-reqwest = { version = "0.58.1", optional = true }
++opendal-http-transport-reqwest = { version = "0.58.1", optional = true, default-features = false, features = [
++  "native-tls",
++] }
+ opendal-layer-logging = { version = "0.58.1", optional = true }
++# Used directly because opendal only re-exports `services::Redis` with its
++# rustls-based `services-redis` feature, not with `services-redis-native-tls`.
++opendal-service-redis = { version = "0.58.1", optional = true, default-features = false, features = [
++  "native-tls",
++] }
+ openssl = { version = "0.10.75", optional = true }
+ rand = "0.8.4"
+ regex = "1.10.3"
+-reqwest = { version = "0.13", features = [
++reqwest = { version = "0.13", default-features = false, features = [
++  "charset",
++  "http2",
++  "system-proxy",
+   "json",
+   "blocking",
+   "stream",
+-  "rustls",
++  "native-tls",
+   "hickory-dns",
+ ], optional = true }
+ rustls-native-certs = { version = "0.8", optional = true }
+@@ -147,11 +157,20 @@
+ serial_test = "3.1"
+ temp-env = "0.3.6"
+ test-case = "3.3.1"
+-thirtyfour = "0.36"
++thirtyfour = { version = "0.36", default-features = false, features = [
++  "component",
++  "native-tls",
++  "reqwest",
++] }
+ 
+ [target.'cfg(unix)'.dependencies]
+ daemonix = "0.1"
+ 
++# blake3's x86_64 assembly assumes 64-bit pointers and crashes or computes
++# wrong hashes on x32; its intrinsics implementations work there.
++[target.'cfg(all(target_arch = "x86_64", target_pointer_width = "32"))'.dependencies]
++blake3 = { version = "1", features = ["prefer_intrinsics"] }
++
+ [target.'cfg(not(target_os = "freebsd"))'.dependencies.libmount]
+ optional = true
+ version = "0.1.15"
+@@ -214,7 +233,12 @@
+   "opendal-http-transport-reqwest",
+   "reqwest",
+ ]
+-redis = ["url", "opendal/services-redis", "opendal-layer-logging"]
++redis = [
++  "url",
++  "opendal/services-redis-native-tls",
++  "opendal-service-redis",
++  "opendal-layer-logging",
++]
+ s3 = [
+   "opendal/services-s3",
+   "opendal-layer-logging",
+diff -Naur a/src/bin/sccache-dist/main.rs b/src/bin/sccache-dist/main.rs
+--- a/src/bin/sccache-dist/main.rs	2026-09-14 05:50:17.000000000 -0400
++++ b/src/bin/sccache-dist/main.rs	2026-10-29 14:19:02.338899173 -0400
+@@ -52,6 +52,7 @@
+ ))]
+ fn main() {
+     init_logging();
++    sccache::dist::jwt_openssl::install();
+ 
+     let incr_env_strs = ["CARGO_BUILD_INCREMENTAL", "CARGO_INCREMENTAL"];
+     incr_env_strs
+@@ -121,15 +122,7 @@
+     jwt::encode(header, &ServerJwt { exp: 0, server_id }, &key).map_err(Into::into)
+ }
+ fn dangerous_insecure_extract_jwt_server_token(server_token: &str) -> Result<ServerId> {
+-    let validation = {
+-        let mut validation = jwt::Validation::default();
+-        validation.validate_exp = false;
+-        validation.validate_nbf = false;
+-        validation.insecure_disable_signature_validation();
+-        validation
+-    };
+-    let dummy_key = jwt::DecodingKey::from_secret(b"secret");
+-    jwt::decode::<ServerJwt>(server_token, &dummy_key, &validation)
++    jwt::dangerous::insecure_decode::<ServerJwt>(server_token)
+         .map(|res| res.claims.server_id)
+         .map_err(Into::into)
+ }
+diff -Naur a/src/cache/redis.rs b/src/cache/redis.rs
+--- a/src/cache/redis.rs	2026-09-14 05:50:17.000000000 -0400
++++ b/src/cache/redis.rs	2026-10-29 14:19:02.338899173 -0400
+@@ -15,7 +15,7 @@
+ 
+ use crate::errors::*;
+ use opendal::Operator;
+-use opendal::services::Redis;
++use opendal_service_redis::Redis;
+ use opendal_layer_logging::LoggingLayer;
+ use std::collections::HashMap;
+ use std::time::Duration;
+diff -Naur a/src/dist/http.rs b/src/dist/http.rs
+--- a/src/dist/http.rs	2026-09-14 05:50:17.000000000 -0400
++++ b/src/dist/http.rs	2026-10-29 14:19:02.338899173 -0400
+@@ -598,6 +598,7 @@
+     }
+     impl JWTJobAuthorizer {
+         fn new(server_key: Vec<u8>) -> Box<Self> {
++            dist::jwt_openssl::install();
+             Box::new(Self { server_key })
+         }
+     }
+diff -Naur a/src/dist/jwt_openssl.rs b/src/dist/jwt_openssl.rs
+--- a/src/dist/jwt_openssl.rs	1969-12-31 19:00:00.000000000 -0500
++++ b/src/dist/jwt_openssl.rs	2026-10-29 14:19:02.338899173 -0400
+@@ -0,0 +1,371 @@
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++//! A `jsonwebtoken` crypto provider backed by the `openssl` crate, so that
++//! JWT signing and verification use the system OpenSSL (or LibreSSL) instead
++//! of `aws-lc-rs` or RustCrypto.
++//!
++//! HMAC (HS*) and RSA (RS*, PS*) algorithms are supported, which covers
++//! everything sccache-dist uses. ECDSA and EdDSA are rejected.
++
++use jwt::crypto::{CryptoProvider, JwtSigner, JwtVerifier, KeyUtils};
++use jwt::errors::{Error, ErrorKind, Result};
++use jwt::jwk::{EllipticCurve, ThumbprintHash};
++use jwt::signature;
++use jwt::{Algorithm, AlgorithmFamily, DecodingKey, DecodingKeyKind, EncodingKey};
++use openssl::bn::BigNum;
++use openssl::hash::{MessageDigest, hash};
++use openssl::memcmp;
++use openssl::pkey::{PKey, Private, Public};
++use openssl::rsa::{Padding, Rsa};
++use openssl::sign::{RsaPssSaltlen, Signer, Verifier};
++
++/// Install the OpenSSL provider as the process-wide `jsonwebtoken` provider.
++///
++/// This must happen before any JWT is encoded or decoded. Calling it more
++/// than once is harmless.
++pub fn install() {
++    // Fails only if a provider was already installed, which is fine.
++    let _ = PROVIDER.install_default();
++}
++
++pub static PROVIDER: CryptoProvider = CryptoProvider {
++    signer_factory: new_signer,
++    verifier_factory: new_verifier,
++    key_utils: KeyUtils {
++        rsa_pub_components_from_private_key,
++        rsa_pub_components_from_public_key,
++        ec_pub_components_from_private_key,
++        ed_pub_components_from_private_key,
++        compute_digest,
++    },
++};
++
++#[derive(Clone, Copy)]
++enum Scheme {
++    Hmac,
++    RsaPkcs1,
++    RsaPss,
++}
++
++fn scheme_and_digest(algorithm: &Algorithm) -> Result<(Scheme, MessageDigest)> {
++    Ok(match algorithm {
++        Algorithm::HS256 => (Scheme::Hmac, MessageDigest::sha256()),
++        Algorithm::HS384 => (Scheme::Hmac, MessageDigest::sha384()),
++        Algorithm::HS512 => (Scheme::Hmac, MessageDigest::sha512()),
++        Algorithm::RS256 => (Scheme::RsaPkcs1, MessageDigest::sha256()),
++        Algorithm::RS384 => (Scheme::RsaPkcs1, MessageDigest::sha384()),
++        Algorithm::RS512 => (Scheme::RsaPkcs1, MessageDigest::sha512()),
++        Algorithm::PS256 => (Scheme::RsaPss, MessageDigest::sha256()),
++        Algorithm::PS384 => (Scheme::RsaPss, MessageDigest::sha384()),
++        Algorithm::PS512 => (Scheme::RsaPss, MessageDigest::sha512()),
++        _ => return Err(ErrorKind::UnsupportedAlgorithm.into()),
++    })
++}
++
++fn provider_error(e: openssl::error::ErrorStack) -> Error {
++    ErrorKind::Provider(e.to_string()).into()
++}
++
++fn rsa_error(e: openssl::error::ErrorStack) -> Error {
++    ErrorKind::InvalidRsaKey(e.to_string()).into()
++}
++
++fn expected_family(scheme: Scheme) -> AlgorithmFamily {
++    match scheme {
++        Scheme::Hmac => AlgorithmFamily::Hmac,
++        Scheme::RsaPkcs1 | Scheme::RsaPss => AlgorithmFamily::Rsa,
++    }
++}
++
++// RFC 7518 section 3.5: for PSS the salt is as long as the digest output and
++// MGF1 uses the same hash function as the signature.
++macro_rules! configure_rsa_padding {
++    ($ctx:expr, $scheme:expr, $digest:expr) => {
++        match $scheme {
++            Scheme::Hmac => Ok(()),
++            Scheme::RsaPkcs1 => $ctx.set_rsa_padding(Padding::PKCS1),
++            Scheme::RsaPss => $ctx
++                .set_rsa_padding(Padding::PKCS1_PSS)
++                .and_then(|()| $ctx.set_rsa_pss_saltlen(RsaPssSaltlen::DIGEST_LENGTH))
++                .and_then(|()| $ctx.set_rsa_mgf1_md($digest)),
++        }
++    };
++}
++
++struct OpensslSigner {
++    algorithm: Algorithm,
++    scheme: Scheme,
++    digest: MessageDigest,
++    key: PKey<Private>,
++}
++
++impl signature::Signer<Vec<u8>> for OpensslSigner {
++    fn try_sign(&self, msg: &[u8]) -> std::result::Result<Vec<u8>, signature::Error> {
++        let sign = || -> std::result::Result<Vec<u8>, openssl::error::ErrorStack> {
++            let mut signer = Signer::new(self.digest, &self.key)?;
++            configure_rsa_padding!(signer, self.scheme, self.digest)?;
++            signer.update(msg)?;
++            signer.sign_to_vec()
++        };
++        sign().map_err(signature::Error::from_source)
++    }
++}
++
++impl JwtSigner for OpensslSigner {
++    fn algorithm(&self) -> Algorithm {
++        self.algorithm
++    }
++}
++
++enum VerifyKey {
++    Hmac(PKey<Private>),
++    Rsa(PKey<Public>),
++}
++
++struct OpensslVerifier {
++    algorithm: Algorithm,
++    scheme: Scheme,
++    digest: MessageDigest,
++    key: VerifyKey,
++}
++
++impl signature::Verifier<Vec<u8>> for OpensslVerifier {
++    fn verify(&self, msg: &[u8], sig: &Vec<u8>) -> std::result::Result<(), signature::Error> {
++        let verified = match &self.key {
++            VerifyKey::Hmac(key) => {
++                let compute = || -> std::result::Result<Vec<u8>, openssl::error::ErrorStack> {
++                    let mut signer = Signer::new(self.digest, key)?;
++                    signer.update(msg)?;
++                    signer.sign_to_vec()
++                };
++                let expected = compute().map_err(signature::Error::from_source)?;
++                // Constant-time comparison; `memcmp::eq` panics on a length mismatch.
++                expected.len() == sig.len() && memcmp::eq(&expected, sig)
++            }
++            VerifyKey::Rsa(key) => {
++                let check = || -> std::result::Result<bool, openssl::error::ErrorStack> {
++                    let mut verifier = Verifier::new(self.digest, key)?;
++                    configure_rsa_padding!(verifier, self.scheme, self.digest)?;
++                    verifier.update(msg)?;
++                    verifier.verify(sig)
++                };
++                // OpenSSL reports some malformed signatures as errors rather
++                // than as a failed verification; both mean "invalid".
++                check().unwrap_or(false)
++            }
++        };
++        if verified {
++            Ok(())
++        } else {
++            Err(signature::Error::new())
++        }
++    }
++}
++
++impl JwtVerifier for OpensslVerifier {
++    fn algorithm(&self) -> Algorithm {
++        self.algorithm
++    }
++}
++
++fn new_signer(algorithm: &Algorithm, key: &EncodingKey) -> Result<Box<dyn JwtSigner>> {
++    let (scheme, digest) = scheme_and_digest(algorithm)?;
++    if key.family() != expected_family(scheme) {
++        return Err(ErrorKind::InvalidKeyFormat.into());
++    }
++    let pkey = match scheme {
++        Scheme::Hmac => PKey::hmac(key.as_bytes()).map_err(provider_error)?,
++        // `EncodingKey` stores RSA private keys as PKCS#1 DER.
++        Scheme::RsaPkcs1 | Scheme::RsaPss => {
++            let rsa = Rsa::private_key_from_der(key.as_bytes()).map_err(rsa_error)?;
++            PKey::from_rsa(rsa).map_err(rsa_error)?
++        }
++    };
++    Ok(Box::new(OpensslSigner {
++        algorithm: *algorithm,
++        scheme,
++        digest,
++        key: pkey,
++    }))
++}
++
++fn rsa_public_key(key: &DecodingKey) -> Result<PKey<Public>> {
++    let rsa = match key.kind() {
++        // `DecodingKey` stores RSA public keys as PKCS#1 DER.
++        DecodingKeyKind::SecretOrDer(der) => {
++            Rsa::public_key_from_der_pkcs1(der).map_err(rsa_error)?
++        }
++        DecodingKeyKind::RsaModulusExponent { n, e } => {
++            let n = BigNum::from_slice(n).map_err(rsa_error)?;
++            let e = BigNum::from_slice(e).map_err(rsa_error)?;
++            Rsa::from_public_components(n, e).map_err(rsa_error)?
++        }
++    };
++    PKey::from_rsa(rsa).map_err(rsa_error)
++}
++
++fn new_verifier(algorithm: &Algorithm, key: &DecodingKey) -> Result<Box<dyn JwtVerifier>> {
++    let (scheme, digest) = scheme_and_digest(algorithm)?;
++    if key.family() != expected_family(scheme) {
++        return Err(ErrorKind::InvalidKeyFormat.into());
++    }
++    let key = match scheme {
++        Scheme::Hmac => {
++            VerifyKey::Hmac(PKey::hmac(key.try_get_as_bytes()?).map_err(provider_error)?)
++        }
++        Scheme::RsaPkcs1 | Scheme::RsaPss => VerifyKey::Rsa(rsa_public_key(key)?),
++    };
++    Ok(Box::new(OpensslVerifier {
++        algorithm: *algorithm,
++        scheme,
++        digest,
++        key,
++    }))
++}
++
++fn rsa_pub_components_from_private_key(der: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
++    let rsa = Rsa::private_key_from_der(der).map_err(rsa_error)?;
++    Ok((rsa.n().to_vec(), rsa.e().to_vec()))
++}
++
++fn rsa_pub_components_from_public_key(der: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
++    let rsa = Rsa::public_key_from_der_pkcs1(der).map_err(rsa_error)?;
++    Ok((rsa.n().to_vec(), rsa.e().to_vec()))
++}
++
++fn ec_pub_components_from_private_key(
++    _der: &[u8],
++    _alg: Algorithm,
++) -> Result<(EllipticCurve, Vec<u8>, Vec<u8>)> {
++    Err(ErrorKind::UnsupportedAlgorithm.into())
++}
++
++fn ed_pub_components_from_private_key(_der: &[u8], _curve: &EllipticCurve) -> Result<Vec<u8>> {
++    Err(ErrorKind::UnsupportedAlgorithm.into())
++}
++
++fn compute_digest(data: &[u8], hash_function: ThumbprintHash) -> Result<Vec<u8>> {
++    let digest = match hash_function {
++        ThumbprintHash::SHA256 => MessageDigest::sha256(),
++        ThumbprintHash::SHA384 => MessageDigest::sha384(),
++        ThumbprintHash::SHA512 => MessageDigest::sha512(),
++        _ => return Err(ErrorKind::UnsupportedAlgorithm.into()),
++    };
++    Ok(hash(digest, data).map_err(provider_error)?.to_vec())
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use jwt::signature::Signer as _;
++    use serde::{Deserialize, Serialize};
++
++    #[derive(Debug, PartialEq, Serialize, Deserialize)]
++    struct Claims {
++        sub: String,
++        exp: u64,
++    }
++
++    fn claims() -> Claims {
++        Claims {
++            sub: "sccache".to_owned(),
++            exp: jwt::get_current_timestamp() + 3600,
++        }
++    }
++
++    #[test]
++    fn hmac_roundtrip_and_rejection() {
++        install();
++        for alg in [Algorithm::HS256, Algorithm::HS384, Algorithm::HS512] {
++            let token = jwt::encode(
++                &jwt::Header::new(alg),
++                &claims(),
++                &EncodingKey::from_secret(b"secret"),
++            )
++            .unwrap();
++            let validation = jwt::Validation::new(alg);
++            let decoded =
++                jwt::decode::<Claims>(&token, &DecodingKey::from_secret(b"secret"), &validation)
++                    .unwrap();
++            assert_eq!(decoded.claims, claims());
++            let err =
++                jwt::decode::<Claims>(&token, &DecodingKey::from_secret(b"wrong"), &validation)
++                    .unwrap_err();
++            assert_eq!(err.kind(), &ErrorKind::InvalidSignature);
++        }
++    }
++
++    #[test]
++    fn hmac_matches_rfc4231() {
++        // RFC 4231 test case 2.
++        install();
++        let signer = new_signer(&Algorithm::HS256, &EncodingKey::from_secret(b"Jefe")).unwrap();
++        let mac = signer.try_sign(b"what do ya want for nothing?").unwrap();
++        let hex: String = mac.iter().map(|b| format!("{:02x}", b)).collect();
++        assert_eq!(
++            hex,
++            "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
++        );
++    }
++
++    #[test]
++    fn rsa_roundtrip_and_rejection() {
++        install();
++        let rsa = Rsa::generate(2048).unwrap();
++        let private_der = rsa.private_key_to_der().unwrap();
++        let public_der = rsa.public_key_to_der_pkcs1().unwrap();
++        let other_public_der = Rsa::generate(2048).unwrap().public_key_to_der_pkcs1().unwrap();
++        for alg in [
++            Algorithm::RS256,
++            Algorithm::RS384,
++            Algorithm::RS512,
++            Algorithm::PS256,
++            Algorithm::PS384,
++            Algorithm::PS512,
++        ] {
++            let token = jwt::encode(
++                &jwt::Header::new(alg),
++                &claims(),
++                &EncodingKey::from_rsa_der(&private_der),
++            )
++            .unwrap();
++            let validation = jwt::Validation::new(alg);
++            let decoded =
++                jwt::decode::<Claims>(&token, &DecodingKey::from_rsa_der(&public_der), &validation)
++                    .unwrap();
++            assert_eq!(decoded.claims, claims());
++
++            let (n, e) = rsa_pub_components_from_public_key(&public_der).unwrap();
++            let by_components = DecodingKey::from_rsa_raw_components(&n, &e);
++            jwt::decode::<Claims>(&token, &by_components, &validation).unwrap();
++
++            let err = jwt::decode::<Claims>(
++                &token,
++                &DecodingKey::from_rsa_der(&other_public_der),
++                &validation,
++            )
++            .unwrap_err();
++            assert_eq!(err.kind(), &ErrorKind::InvalidSignature);
++        }
++    }
++
++    #[test]
++    fn rejects_key_of_wrong_family() {
++        install();
++        let rsa = Rsa::generate(2048).unwrap();
++        let public_der = rsa.public_key_to_der_pkcs1().unwrap();
++        assert!(new_verifier(&Algorithm::HS256, &DecodingKey::from_rsa_der(&public_der)).is_err());
++        assert!(new_verifier(&Algorithm::RS256, &DecodingKey::from_secret(b"secret")).is_err());
++        assert!(new_signer(&Algorithm::ES256, &EncodingKey::from_secret(b"secret")).is_err());
++    }
++}
+diff -Naur a/src/dist/mod.rs b/src/dist/mod.rs
+--- a/src/dist/mod.rs	2026-09-14 05:50:17.000000000 -0400
++++ b/src/dist/mod.rs	2026-10-29 14:19:02.338899173 -0400
+@@ -34,6 +34,8 @@
+ pub mod client_auth;
+ #[cfg(any(feature = "dist-client", feature = "dist-server"))]
+ pub mod http;
++#[cfg(feature = "dist-server")]
++pub mod jwt_openssl;
+ #[cfg(test)]
+ mod test;
+ 

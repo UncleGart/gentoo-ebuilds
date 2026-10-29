@@ -1,0 +1,144 @@
+nix 0.14.1 (used by libmount 0.1.15) uses c_long/c_ulong for fields that are
+64 bits wide on x32 (x86_64 with 32-bit pointers): mq_attr members,
+timespec::tv_nsec and the sysinfo memory counters. Use per-target type
+aliases, as later nix releases do (nix-rust/nix#1366).
+
+diff -Naur -x .cargo-checksum.json nix-0.14.1.orig/src/mqueue.rs nix-0.14.1/src/mqueue.rs
+--- a/src/mqueue.rs	2019-06-03 09:01:58.000000000 -0400
++++ b/src/mqueue.rs	2026-10-29 13:57:07.849104702 -0400
+@@ -5,7 +5,7 @@
+ use Result;
+ use errno::Errno;
+ 
+-use libc::{self, c_char, c_long, mqd_t, size_t};
++use libc::{self, c_char, mqd_t, size_t};
+ use std::ffi::CString;
+ use sys::stat::Mode;
+ use std::mem;
+@@ -28,6 +28,15 @@
+     }
+ }
+ 
++// On x32 (x86_64 with 32-bit pointers) the kernel and glibc use 64-bit
++// members in `struct mq_attr`, while `c_long` is only 32 bits wide.
++#[cfg(all(target_arch = "x86_64", target_pointer_width = "32"))]
++#[allow(non_camel_case_types)]
++pub type mq_attr_member_t = i64;
++#[cfg(not(all(target_arch = "x86_64", target_pointer_width = "32")))]
++#[allow(non_camel_case_types)]
++pub type mq_attr_member_t = libc::c_long;
++
+ #[repr(C)]
+ #[derive(Clone, Copy)]
+ #[allow(missing_debug_implementations)]
+@@ -46,10 +55,10 @@
+ }
+ 
+ impl MqAttr {
+-    pub fn new(mq_flags: c_long,
+-               mq_maxmsg: c_long,
+-               mq_msgsize: c_long,
+-               mq_curmsgs: c_long)
++    pub fn new(mq_flags: mq_attr_member_t,
++               mq_maxmsg: mq_attr_member_t,
++               mq_msgsize: mq_attr_member_t,
++               mq_curmsgs: mq_attr_member_t)
+                -> MqAttr {
+         let mut attr = unsafe { mem::uninitialized::<libc::mq_attr>() };
+         attr.mq_flags = mq_flags;
+@@ -59,7 +68,7 @@
+         MqAttr { mq_attr: attr }
+     }
+ 
+-    pub fn flags(&self) -> c_long {
++    pub fn flags(&self) -> mq_attr_member_t {
+         self.mq_attr.mq_flags
+     }
+ }
+@@ -153,7 +162,7 @@
+ /// Returns the old attributes
+ pub fn mq_set_nonblock(mqd: mqd_t) -> Result<(MqAttr)> {
+     let oldattr = mq_getattr(mqd)?;
+-    let newattr = MqAttr::new(MQ_OFlag::O_NONBLOCK.bits() as c_long,
++    let newattr = MqAttr::new(MQ_OFlag::O_NONBLOCK.bits() as mq_attr_member_t,
+                               oldattr.mq_attr.mq_maxmsg,
+                               oldattr.mq_attr.mq_msgsize,
+                               oldattr.mq_attr.mq_curmsgs);
+diff -Naur -x .cargo-checksum.json nix-0.14.1.orig/src/sys/sysinfo.rs nix-0.14.1/src/sys/sysinfo.rs
+--- a/src/sys/sysinfo.rs	2019-05-26 18:37:59.000000000 -0400
++++ b/src/sys/sysinfo.rs	2026-10-29 13:57:00.909105222 -0400
+@@ -5,6 +5,15 @@
+ use Result;
+ use errno::Errno;
+ 
++// On x32 (x86_64 with 32-bit pointers) the memory fields of `struct sysinfo`
++// are 64 bits wide, while `c_ulong` is only 32 bits wide.
++#[cfg(all(target_arch = "x86_64", target_pointer_width = "32"))]
++#[allow(non_camel_case_types)]
++type mem_blocks_t = u64;
++#[cfg(not(all(target_arch = "x86_64", target_pointer_width = "32")))]
++#[allow(non_camel_case_types)]
++type mem_blocks_t = libc::c_ulong;
++
+ /// System info structure returned by `sysinfo`.
+ #[derive(Copy, Clone)]
+ #[allow(missing_debug_implementations)] // libc::sysinfo doesn't impl Debug
+@@ -58,7 +67,7 @@
+         self.scale_mem(self.0.freeram)
+     }
+ 
+-    fn scale_mem(&self, units: libc::c_ulong) -> u64 {
++    fn scale_mem(&self, units: mem_blocks_t) -> u64 {
+         units as u64 * self.0.mem_unit as u64
+     }
+ }
+diff -Naur -x .cargo-checksum.json nix-0.14.1.orig/src/sys/time.rs nix-0.14.1/src/sys/time.rs
+--- a/src/sys/time.rs	2019-06-03 09:01:59.000000000 -0400
++++ b/src/sys/time.rs	2026-10-29 13:57:00.909105222 -0400
+@@ -1,6 +1,15 @@
+ use std::{cmp, fmt, ops};
+ use std::convert::From;
+-use libc::{c_long, timespec, timeval};
++use libc::{timespec, timeval};
++
++// On x32 (x86_64 with 32-bit pointers) `timespec::tv_nsec` is 64 bits wide,
++// while `c_long` is only 32 bits wide.
++#[cfg(all(target_arch = "x86_64", target_pointer_width = "32"))]
++#[allow(non_camel_case_types)]
++type timespec_tv_nsec_t = i64;
++#[cfg(not(all(target_arch = "x86_64", target_pointer_width = "32")))]
++#[allow(non_camel_case_types)]
++type timespec_tv_nsec_t = ::libc::c_long;
+ pub use libc::{time_t, suseconds_t};
+ 
+ pub trait TimeValLike: Sized {
+@@ -136,7 +145,7 @@
+         assert!(secs >= TS_MIN_SECONDS && secs <= TS_MAX_SECONDS,
+                 "TimeSpec out of bounds");
+         TimeSpec(timespec {tv_sec: secs as time_t,
+-                           tv_nsec: nanos as c_long })
++                           tv_nsec: nanos as timespec_tv_nsec_t })
+     }
+ 
+     fn num_seconds(&self) -> i64 {
+@@ -163,9 +172,9 @@
+ }
+ 
+ impl TimeSpec {
+-    fn nanos_mod_sec(&self) -> c_long {
++    fn nanos_mod_sec(&self) -> timespec_tv_nsec_t {
+         if self.tv_sec() < 0 && self.tv_nsec() > 0 {
+-            self.tv_nsec() - NANOS_PER_SEC as c_long
++            self.tv_nsec() - NANOS_PER_SEC as timespec_tv_nsec_t
+         } else {
+             self.tv_nsec()
+         }
+@@ -175,7 +184,7 @@
+         self.0.tv_sec
+     }
+ 
+-    pub fn tv_nsec(&self) -> c_long {
++    pub fn tv_nsec(&self) -> timespec_tv_nsec_t {
+         self.0.tv_nsec
+     }
+ }
