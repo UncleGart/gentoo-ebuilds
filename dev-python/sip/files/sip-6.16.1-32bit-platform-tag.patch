@@ -1,0 +1,19 @@
+--- a/sipbuild/project.py
++++ b/sipbuild/project.py
+@@ -354,6 +354,16 @@
+ 
+         platform_tag = sysconfig.get_platform()
+ 
++        # A 32-bit interpreter running on a 64-bit kernel (e.g. the x32 ABI or
++        # a 32-bit userland on an x86_64/aarch64 kernel) reports the kernel's
++        # architecture.  Follow the same convention as packaging and
++        # setuptools so that the wheel is installable by the interpreter.
++        if sys.maxsize <= 2 ** 32:
++            if platform_tag == 'linux-x86_64':
++                platform_tag = 'linux-i686'
++            elif platform_tag == 'linux-aarch64':
++                platform_tag = 'linux-armv7l'
++
+         if self.py_platform == 'darwin':
+             # We expect a three part tag so leave anything else unchanged.
+             parts = platform_tag.split('-')
