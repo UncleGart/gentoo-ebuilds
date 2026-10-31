@@ -6,7 +6,7 @@
 
 EAPI=8
 
-PYTHON_COMPAT=( python3_{13..14} )
+PYTHON_COMPAT=( python3_{14..15} )
 PYTHON_REQ_USE="threads(+),xml(+)"
 
 MY_PV="${PV/_alpha/.alpha}"
@@ -152,7 +152,7 @@ COMMON_DEPEND="${PYTHON_DEPS}
 	>=dev-libs/redland-1.0.16
 	dev-libs/zxcvbn-c
 	>=dev-libs/xmlsec-1.2.35:=[nss]
-	>=games-engines/box2d-3.1.1:0
+	>=games-engines/box2d-3.1.0:0
 	media-gfx/fontforge
 	media-gfx/graphite2
 	media-libs/fontconfig
