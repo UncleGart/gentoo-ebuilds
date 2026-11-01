@@ -1,0 +1,79 @@
+--- a/gtk/roaring/roaring.c
++++ b/gtk/roaring/roaring.c
+@@ -12869,6 +12869,13 @@
+ 
+ #if defined(CROARING_ASMBITMANIPOPTIMIZATION) && defined(CROARING_IS_X64)
+ 
++// The assembly below uses `words` as the base register together with a
++// 64-bit index register. On x32 (ILP32 on x86-64) pointers are only 32 bits
++// wide, so the compiler would pick a 32-bit register for `words`, and mixing
++// 32-bit and 64-bit registers in one address is invalid. Widen the pointer
++// to 64 bits first; zero-extension yields the same address.
++#define CROARING_ASM_PTR64(p) ((uint64_t)(uintptr_t)(p))
++
+ static inline uint64_t _asm_bitset_set_list_withcard(uint64_t *words,
+                                                      uint64_t card,
+                                                      const uint16_t *list,
+@@ -12892,7 +12899,7 @@
+         "jnz 1b"
+         : [card] "+&r"(card), [list] "+&r"(list), [load] "=&r"(load),
+           [pos] "=&r"(pos), [offset] "=&r"(offset)
+-        : [end] "r"(end), [words] "r"(words), [shift] "r"(shift));
++        : [end] "r"(end), [words] "r"(CROARING_ASM_PTR64(words)), [shift] "r"(shift));
+     return card;
+ }
+ 
+@@ -12912,7 +12919,7 @@
+             "bts %[pos], %[load]\n"
+             "mov %[load], (%[words],%[offset],8)"
+             : [load] "=&r"(load), [offset] "=&r"(offset)
+-            : [words] "r"(words), [shift] "r"(shift), [pos] "r"(pos));
++            : [words] "r"(CROARING_ASM_PTR64(words)), [shift] "r"(shift), [pos] "r"(pos));
+         pos = list[1];
+         __asm volatile(
+             "shrx %[shift], %[pos], %[offset]\n"
+@@ -12920,7 +12927,7 @@
+             "bts %[pos], %[load]\n"
+             "mov %[load], (%[words],%[offset],8)"
+             : [load] "=&r"(load), [offset] "=&r"(offset)
+-            : [words] "r"(words), [shift] "r"(shift), [pos] "r"(pos));
++            : [words] "r"(CROARING_ASM_PTR64(words)), [shift] "r"(shift), [pos] "r"(pos));
+         pos = list[2];
+         __asm volatile(
+             "shrx %[shift], %[pos], %[offset]\n"
+@@ -12928,7 +12935,7 @@
+             "bts %[pos], %[load]\n"
+             "mov %[load], (%[words],%[offset],8)"
+             : [load] "=&r"(load), [offset] "=&r"(offset)
+-            : [words] "r"(words), [shift] "r"(shift), [pos] "r"(pos));
++            : [words] "r"(CROARING_ASM_PTR64(words)), [shift] "r"(shift), [pos] "r"(pos));
+         pos = list[3];
+         __asm volatile(
+             "shrx %[shift], %[pos], %[offset]\n"
+@@ -12936,7 +12943,7 @@
+             "bts %[pos], %[load]\n"
+             "mov %[load], (%[words],%[offset],8)"
+             : [load] "=&r"(load), [offset] "=&r"(offset)
+-            : [words] "r"(words), [shift] "r"(shift), [pos] "r"(pos));
++            : [words] "r"(CROARING_ASM_PTR64(words)), [shift] "r"(shift), [pos] "r"(pos));
+     }
+ 
+     while (list != end) {
+@@ -12947,7 +12954,7 @@
+             "bts %[pos], %[load]\n"
+             "mov %[load], (%[words],%[offset],8)"
+             : [load] "=&r"(load), [offset] "=&r"(offset)
+-            : [words] "r"(words), [shift] "r"(shift), [pos] "r"(pos));
++            : [words] "r"(CROARING_ASM_PTR64(words)), [shift] "r"(shift), [pos] "r"(pos));
+         list++;
+     }
+ }
+@@ -12973,7 +12980,7 @@
+         "jnz 1b"
+         : [card] "+&r"(card), [list] "+&r"(list), [load] "=&r"(load),
+           [pos] "=&r"(pos), [offset] "=&r"(offset)
+-        : [end] "r"(end), [words] "r"(words), [shift] "r"(shift)
++        : [end] "r"(end), [words] "r"(CROARING_ASM_PTR64(words)), [shift] "r"(shift)
+         :
+         /* clobbers */ "memory");
+     return card;
