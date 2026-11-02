@@ -1,0 +1,11 @@
+--- a/src/protun/nm_protun_service/service.rs	2026-11-01 23:28:56.365216187 -0500
++++ b/src/protun/nm_protun_service/service.rs	2026-11-01 23:28:56.365216187 -0500
+@@ -246,7 +246,7 @@
+     ifr[..copy_len].copy_from_slice(&name_bytes[..copy_len]);
+     const IFF_TUN: u16 = 0x0001; // This is a TUN device not TAP
+     const IFF_NO_PI: u16 = 0x1000; // Don't include packet information headers
+-    const TUNSETIFF: u64 = 0x400454ca; // TUNSET config ioctl request
++    const TUNSETIFF: libc::Ioctl = 0x400454ca; // TUNSET config ioctl request
+     let flags = IFF_TUN | IFF_NO_PI;
+     ifr[16] = (flags & 0xff) as u8;
+     ifr[17] = ((flags >> 8) & 0xff) as u8;

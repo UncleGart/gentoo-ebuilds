@@ -469,6 +469,10 @@ RDEPEND="
 "
 BDEPEND="virtual/pkgconfig"
 
+PATCHES=(
+	"${FILESDIR}"/${P}-x32-ioctl.patch
+)
+
 src_unpack() {
 	cargo_src_unpack
 
@@ -485,6 +489,11 @@ src_unpack() {
 }
 
 src_prepare() {
+	pushd "${ECARGO_VENDOR}"/ring-0.17.14 >/dev/null || die
+	eapply "${FILESDIR}"/ring-0.17.14-x32.patch
+	sed -i -e 's/"files":{[^}]*}/"files":{}/' .cargo-checksum.json || die
+	popd >/dev/null || die
+
 	distutils-r1_src_prepare
 
 	sed -i "/--cov/d" setup.cfg || die

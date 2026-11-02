@@ -1,0 +1,1063 @@
+diff -ruN a/build.rs b/build.rs
+--- a/build.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/build.rs	2026-11-01 23:26:53.025230170 -0500
+@@ -305,6 +305,13 @@
+     let out_dir = PathBuf::from(out_dir);
+ 
+     let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
++    // x32 (x86_64 with 32-bit pointers) isn't supported by the assembly code;
++    // build it like any other target without assembly.
++    let arch = if arch == X86_64 && env::var("CARGO_CFG_TARGET_POINTER_WIDTH").unwrap() == "32" {
++        "x86_64-x32".to_owned()
++    } else {
++        arch
++    };
+     let os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+     let env = env::var("CARGO_CFG_TARGET_ENV").unwrap();
+     let endian = env::var("CARGO_CFG_TARGET_ENDIAN").unwrap();
+diff -ruN a/include/ring-core/target.h b/include/ring-core/target.h
+--- a/include/ring-core/target.h	2006-07-23 21:21:28.000000000 -0400
++++ b/include/ring-core/target.h	2026-11-01 23:26:53.025230170 -0500
+@@ -22,7 +22,7 @@
+ // <ring-core/base.h> and <ring-core/asm_base.h>. Prefer to include those headers
+ // instead.
+ 
+-#if defined(__x86_64) || defined(_M_AMD64) || defined(_M_X64)
++#if (defined(__x86_64) && !defined(__ILP32__)) || defined(_M_AMD64) || defined(_M_X64)
+ #define OPENSSL_64_BIT
+ #define OPENSSL_X86_64
+ #elif defined(__x86) || defined(__i386) || defined(__i386__) || defined(_M_IX86)
+diff -ruN a/src/aead/aes/hw.rs b/src/aead/aes/hw.rs
+--- a/src/aead/aes/hw.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/aead/aes/hw.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -15,7 +15,7 @@
+ #![cfg(any(
+     all(target_arch = "aarch64", target_endian = "little"),
+     target_arch = "x86",
+-    target_arch = "x86_64"
++    all(target_arch = "x86_64", target_pointer_width = "64")
+ ))]
+ 
+ use super::{Block, Counter, EncryptBlock, EncryptCtr32, Iv, KeyBytes, Overlapping, AES_KEY};
+@@ -26,7 +26,7 @@
+     if #[cfg(all(target_arch = "aarch64", target_endian = "little"))] {
+         pub(in super::super) type RequiredCpuFeatures = cpu::arm::Aes;
+         pub(in super::super) type OptionalCpuFeatures = ();
+-    } else if #[cfg(any(target_arch = "x86", target_arch = "x86_64"))] {
++    } else if #[cfg(any(target_arch = "x86", all(target_arch = "x86_64", target_pointer_width = "64")))] {
+         use cpu::intel::{Aes, Avx, Ssse3};
+         // Some functions seem to have been written to require only SSE/SSE2
+         // but there seem to be no SSSE3-less CPUs with AES-NI, and we don't
+@@ -52,7 +52,7 @@
+         Ok(Self { inner })
+     }
+ 
+-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
++    #[cfg(any(target_arch = "x86", all(target_arch = "x86_64", target_pointer_width = "64")))]
+     pub(in super::super) fn new(
+         bytes: KeyBytes<'_>,
+         (Aes { .. }, Ssse3 { .. }): RequiredCpuFeatures,
+@@ -70,7 +70,7 @@
+ 
+     #[cfg(any(
+         all(target_arch = "aarch64", target_endian = "little"),
+-        target_arch = "x86_64"
++        all(target_arch = "x86_64", target_pointer_width = "64")
+     ))]
+     #[must_use]
+     pub(in super::super) fn inner_less_safe(&self) -> &AES_KEY {
+diff -ruN a/src/aead/aes/vp.rs b/src/aead/aes/vp.rs
+--- a/src/aead/aes/vp.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/aead/aes/vp.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -16,7 +16,7 @@
+     all(target_arch = "aarch64", target_endian = "little"),
+     all(target_arch = "arm", target_endian = "little"),
+     target_arch = "x86",
+-    target_arch = "x86_64"
++    all(target_arch = "x86_64", target_pointer_width = "64")
+ ))]
+ 
+ use super::{Block, Counter, EncryptBlock, EncryptCtr32, Iv, KeyBytes, Overlapping, AES_KEY};
+@@ -28,7 +28,7 @@
+ ))]
+ type RequiredCpuFeatures = cpu::arm::Neon;
+ 
+-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
++#[cfg(any(target_arch = "x86", all(target_arch = "x86_64", target_pointer_width = "64")))]
+ pub(in super::super) type RequiredCpuFeatures = cpu::intel::Ssse3;
+ 
+ #[derive(Clone)]
+@@ -49,7 +49,7 @@
+ #[cfg(any(
+     all(target_arch = "aarch64", target_endian = "little"),
+     all(target_arch = "arm", target_endian = "little"),
+-    target_arch = "x86_64"
++    all(target_arch = "x86_64", target_pointer_width = "64")
+ ))]
+ impl EncryptBlock for Key {
+     fn encrypt_block(&self, block: Block) -> Block {
+@@ -63,7 +63,7 @@
+ 
+ #[cfg(any(
+     all(target_arch = "aarch64", target_endian = "little"),
+-    target_arch = "x86_64"
++    all(target_arch = "x86_64", target_pointer_width = "64")
+ ))]
+ impl EncryptCtr32 for Key {
+     fn ctr32_encrypt_within(&self, in_out: Overlapping<'_>, ctr: &mut Counter) {
+diff -ruN a/src/aead/aes.rs b/src/aead/aes.rs
+--- a/src/aead/aes.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/aead/aes.rs	2026-11-01 23:26:53.035230167 -0500
+@@ -36,7 +36,7 @@
+ pub type OverlappingPartialBlock<'o> = overlapping::PartialBlock<'o, u8, BLOCK_LEN>;
+ 
+ cfg_if! {
+-    if #[cfg(any(all(target_arch = "aarch64", target_endian = "little"), target_arch = "x86_64"))] {
++    if #[cfg(any(all(target_arch = "aarch64", target_endian = "little"), all(target_arch = "x86_64", target_pointer_width = "64")))] {
+         pub(super) use ffi::AES_KEY;
+     } else {
+         use ffi::AES_KEY;
+@@ -47,7 +47,7 @@
+ pub(super) enum Key {
+     #[cfg(any(
+         all(target_arch = "aarch64", target_endian = "little"),
+-        target_arch = "x86_64",
++        all(target_arch = "x86_64", target_pointer_width = "64"),
+         target_arch = "x86"
+     ))]
+     Hw(hw::Key),
+@@ -56,7 +56,7 @@
+         all(target_arch = "aarch64", target_endian = "little"),
+         all(target_arch = "arm", target_endian = "little"),
+         target_arch = "x86",
+-        target_arch = "x86_64"
++        all(target_arch = "x86_64", target_pointer_width = "64")
+     ))]
+     Vp(vp::Key),
+ 
+@@ -72,7 +72,7 @@
+         #[cfg(any(
+             all(target_arch = "aarch64", target_endian = "little"),
+             target_arch = "x86",
+-            target_arch = "x86_64"
++            all(target_arch = "x86_64", target_pointer_width = "64")
+         ))]
+         if let Some(hw_features) = cpu_features.get_feature() {
+             return Ok(Self::Hw(hw::Key::new(
+@@ -85,7 +85,7 @@
+         #[cfg(any(
+             all(target_arch = "aarch64", target_endian = "little"),
+             all(target_arch = "arm", target_endian = "little"),
+-            target_arch = "x86_64",
++            all(target_arch = "x86_64", target_pointer_width = "64"),
+             target_arch = "x86"
+         ))]
+         if let Some(vp_features) = cpu_features.get_feature() {
+@@ -102,7 +102,7 @@
+         match self {
+             #[cfg(any(
+                 all(target_arch = "aarch64", target_endian = "little"),
+-                target_arch = "x86_64",
++                all(target_arch = "x86_64", target_pointer_width = "64"),
+                 target_arch = "x86"
+             ))]
+             Key::Hw(inner) => inner.encrypt_block(a),
+@@ -111,7 +111,7 @@
+                 all(target_arch = "aarch64", target_endian = "little"),
+                 all(target_arch = "arm", target_endian = "little"),
+                 target_arch = "x86",
+-                target_arch = "x86_64"
++                all(target_arch = "x86_64", target_pointer_width = "64")
+             ))]
+             Key::Vp(inner) => inner.encrypt_block(a),
+ 
+diff -ruN a/src/aead/aes_gcm/aeshwclmulmovbe.rs b/src/aead/aes_gcm/aeshwclmulmovbe.rs
+--- a/src/aead/aes_gcm/aeshwclmulmovbe.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/aead/aes_gcm/aeshwclmulmovbe.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -12,7 +12,7 @@
+ // OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+ // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ 
+-#![cfg(target_arch = "x86_64")]
++#![cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+ 
+ use super::{
+     super::overlapping::IndexError,
+diff -ruN a/src/aead/aes_gcm/vaesclmulavx2.rs b/src/aead/aes_gcm/vaesclmulavx2.rs
+--- a/src/aead/aes_gcm/vaesclmulavx2.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/aead/aes_gcm/vaesclmulavx2.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -12,7 +12,7 @@
+ // OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+ // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ 
+-#![cfg(target_arch = "x86_64")]
++#![cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+ 
+ use super::{aes, gcm, Counter, BLOCK_LEN};
+ use crate::{aead::aes::Overlapping, c, polyfill::slice::AsChunksMut};
+diff -ruN a/src/aead/aes_gcm.rs b/src/aead/aes_gcm.rs
+--- a/src/aead/aes_gcm.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/aead/aes_gcm.rs	2026-11-01 23:26:53.035230167 -0500
+@@ -29,7 +29,7 @@
+     all(target_arch = "aarch64", target_endian = "little"),
+     all(target_arch = "arm", target_endian = "little"),
+     target_arch = "x86",
+-    target_arch = "x86_64"
++    all(target_arch = "x86_64", target_pointer_width = "64")
+ ))]
+ use cpu::GetFeature as _;
+ 
+@@ -51,16 +51,16 @@
+ 
+ #[derive(Clone)]
+ enum DynKey {
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+     VAesClMulAvx2(Combo<aes::hw::Key, gcm::vclmulavx2::Key>),
+ 
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+     AesHwClMulAvxMovbe(Combo<aes::hw::Key, gcm::clmulavxmovbe::Key>),
+ 
+     #[cfg(any(
+         all(target_arch = "aarch64", target_endian = "little"),
+         target_arch = "x86",
+-        target_arch = "x86_64"
++        all(target_arch = "x86_64", target_pointer_width = "64")
+     ))]
+     AesHwClMul(Combo<aes::hw::Key, gcm::clmul::Key>),
+ 
+@@ -70,7 +70,7 @@
+     ))]
+     Simd(Combo<aes::vp::Key, gcm::neon::Key>),
+ 
+-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
++    #[cfg(any(target_arch = "x86", all(target_arch = "x86_64", target_pointer_width = "64")))]
+     Simd(Combo<aes::vp::Key, gcm::fallback::Key>),
+ 
+     Fallback(Combo<aes::fallback::Key, gcm::fallback::Key>),
+@@ -80,7 +80,7 @@
+     fn new(key: aes::KeyBytes, cpu: cpu::Features) -> Result<Self, error::Unspecified> {
+         let cpu = cpu.values();
+ 
+-        #[cfg(target_arch = "x86_64")]
++        #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+         if let Some((aes, gcm)) = cpu.get_feature() {
+             // 14.3.1 Detection of VEX-Encoded AES and VPCLMULQDQ
+             let aes_key = aes::hw::Key::new(key, aes, cpu.get_feature())?;
+@@ -118,7 +118,7 @@
+             return Self::new_neon(key, cpu);
+         }
+ 
+-        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
++        #[cfg(any(target_arch = "x86", all(target_arch = "x86_64", target_pointer_width = "64")))]
+         if let Some(cpu) = cpu.get_feature() {
+             return Self::new_ssse3(key, cpu);
+         }
+@@ -139,7 +139,7 @@
+         Ok(Self::Simd(Combo { aes_key, gcm_key }))
+     }
+ 
+-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
++    #[cfg(any(target_arch = "x86", all(target_arch = "x86_64", target_pointer_width = "64")))]
+     #[inline(never)]
+     fn new_ssse3(
+         key: aes::KeyBytes,
+@@ -156,7 +156,7 @@
+             all(target_arch = "aarch64", target_endian = "little"),
+             all(target_arch = "arm", target_endian = "little"),
+             target_arch = "x86",
+-            target_arch = "x86_64",
++            all(target_arch = "x86_64", target_pointer_width = "64"),
+         ),
+         inline(never)
+     )]
+@@ -190,7 +190,7 @@
+             seal_whole_partial(c, aad, in_out, ctr, tag_iv, aarch64::seal_whole)
+         }
+ 
+-        #[cfg(target_arch = "x86_64")]
++        #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+         DynKey::VAesClMulAvx2(c) => seal_whole_partial(
+             c,
+             aad,
+@@ -200,18 +200,18 @@
+             vaesclmulavx2::seal_whole_vaes_clmul_avx2,
+         ),
+ 
+-        #[cfg(target_arch = "x86_64")]
++        #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+         DynKey::AesHwClMulAvxMovbe(Combo { aes_key, gcm_key }) => {
+             aeshwclmulmovbe::seal(aes_key, gcm_key, ctr, tag_iv, aad, in_out)
+         }
+ 
+-        #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
++        #[cfg(any(all(target_arch = "x86_64", target_pointer_width = "64"), target_arch = "x86"))]
+         DynKey::AesHwClMul(c) => seal_strided(c, aad, in_out, ctr, tag_iv),
+ 
+         #[cfg(any(
+             all(target_arch = "aarch64", target_endian = "little"),
+             all(target_arch = "arm", target_endian = "little"),
+-            target_arch = "x86_64",
++            all(target_arch = "x86_64", target_pointer_width = "64"),
+             target_arch = "x86"
+         ))]
+         DynKey::Simd(c) => seal_strided(c, aad, in_out, ctr, tag_iv),
+@@ -222,7 +222,7 @@
+ 
+ #[cfg(any(
+     all(target_arch = "aarch64", target_endian = "little"),
+-    target_arch = "x86_64"
++    all(target_arch = "x86_64", target_pointer_width = "64")
+ ))]
+ fn seal_whole_partial<A: aes::EncryptBlock, G: gcm::UpdateBlock>(
+     Combo { aes_key, gcm_key }: &Combo<A, G>,
+@@ -245,14 +245,14 @@
+         all(target_arch = "aarch64", target_endian = "little"),
+         all(target_arch = "arm", target_endian = "little"),
+         target_arch = "x86",
+-        target_arch = "x86_64"
++        all(target_arch = "x86_64", target_pointer_width = "64")
+     ),
+     inline(never)
+ )]
+ #[cfg_attr(
+     any(
+         all(target_arch = "aarch64", target_endian = "little"),
+-        target_arch = "x86_64"
++        all(target_arch = "x86_64", target_pointer_width = "64")
+     ),
+     cold
+ )]
+@@ -317,7 +317,7 @@
+             open_whole_partial(c, aad, in_out_slice, src, ctr, tag_iv, aarch64::open_whole)
+         }
+ 
+-        #[cfg(target_arch = "x86_64")]
++        #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+         DynKey::VAesClMulAvx2(c) => open_whole_partial(
+             c,
+             aad,
+@@ -328,18 +328,18 @@
+             vaesclmulavx2::open_whole_vaes_clmul_avx2,
+         ),
+ 
+-        #[cfg(target_arch = "x86_64")]
++        #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+         DynKey::AesHwClMulAvxMovbe(Combo { aes_key, gcm_key }) => {
+             aeshwclmulmovbe::open(aes_key, gcm_key, ctr, tag_iv, aad, in_out_slice, src)
+         }
+ 
+-        #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
++        #[cfg(any(all(target_arch = "x86_64", target_pointer_width = "64"), target_arch = "x86"))]
+         DynKey::AesHwClMul(c) => open_strided(c, aad, in_out_slice, src, ctr, tag_iv),
+ 
+         #[cfg(any(
+             all(target_arch = "aarch64", target_endian = "little"),
+             all(target_arch = "arm", target_endian = "little"),
+-            target_arch = "x86_64",
++            all(target_arch = "x86_64", target_pointer_width = "64"),
+             target_arch = "x86"
+         ))]
+         DynKey::Simd(c) => open_strided(c, aad, in_out_slice, src, ctr, tag_iv),
+@@ -350,7 +350,7 @@
+ 
+ #[cfg(any(
+     all(target_arch = "aarch64", target_endian = "little"),
+-    target_arch = "x86_64"
++    all(target_arch = "x86_64", target_pointer_width = "64")
+ ))]
+ fn open_whole_partial<A: aes::EncryptBlock, G: gcm::UpdateBlock>(
+     Combo { aes_key, gcm_key }: &Combo<A, G>,
+@@ -391,7 +391,7 @@
+             target_feature = "neon"
+         ),
+         all(
+-            any(target_arch = "x86", target_arch = "x86_64"),
++            any(target_arch = "x86", all(target_arch = "x86_64", target_pointer_width = "64")),
+             target_feature = "sse"
+         )
+     ),
+@@ -400,7 +400,7 @@
+ #[cfg_attr(
+     any(
+         all(target_arch = "aarch64", target_endian = "little"),
+-        target_arch = "x86_64"
++        all(target_arch = "x86_64", target_pointer_width = "64")
+     ),
+     cold
+ )]
+diff -ruN a/src/aead/chacha.rs b/src/aead/chacha.rs
+--- a/src/aead/chacha.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/aead/chacha.rs	2026-11-01 23:26:53.035230167 -0500
+@@ -22,7 +22,7 @@
+                 all(target_arch = "aarch64", target_endian = "little"),
+                 all(target_arch = "arm", target_endian = "little"),
+                 target_arch = "x86",
+-                target_arch = "x86_64"
++                all(target_arch = "x86_64", target_pointer_width = "64")
+             ))] {
+         #[macro_use]
+         mod ffi;
+@@ -124,7 +124,7 @@
+                         fallback::ChaCha20_ctr32(self, counter, in_out)
+                     }
+                 }
+-            } else if #[cfg(target_arch = "x86_64")] {
++            } else if #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))] {
+                 use cpu::{GetFeature, intel::{Avx2, Ssse3}};
+                 const SSE_MIN_LEN: usize = 128 + 1; // Also AVX2, SSSE3_4X, SSSE3
+                 if in_out.len() >= SSE_MIN_LEN {
+@@ -184,7 +184,7 @@
+         not(any(
+             all(target_arch = "aarch64", target_endian = "little"),
+             all(target_arch = "arm", target_endian = "little"),
+-            target_arch = "x86_64"
++            all(target_arch = "x86_64", target_pointer_width = "64")
+         ))
+     ))]
+     fn into_words_less_safe(self) -> [u32; 4] {
+@@ -220,7 +220,7 @@
+             all(target_arch = "aarch64", target_endian = "little"),
+             all(target_arch = "arm", target_endian = "little"),
+             target_arch = "x86",
+-            target_arch = "x86_64"
++            all(target_arch = "x86_64", target_pointer_width = "64")
+         )) {
+             MAX_ALIGNMENT_AND_OFFSET
+         } else {
+diff -ruN a/src/aead/chacha20_poly1305/mod.rs b/src/aead/chacha20_poly1305/mod.rs
+--- a/src/aead/chacha20_poly1305/mod.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/aead/chacha20_poly1305/mod.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -26,7 +26,7 @@
+ cfg_if! {
+     if #[cfg(any(
+             all(target_arch = "aarch64", target_endian = "little"),
+-            target_arch = "x86_64"))] {
++            all(target_arch = "x86_64", target_pointer_width = "64")))] {
+         use cpu::GetFeature as _;
+         mod integrated;
+     }
+@@ -57,7 +57,7 @@
+ ) -> Result<Tag, InputTooLongError> {
+     #[cfg(any(
+         all(target_arch = "aarch64", target_endian = "little"),
+-        target_arch = "x86_64"
++        all(target_arch = "x86_64", target_pointer_width = "64")
+     ))]
+     if let Some(required) = cpu.get_feature() {
+         return integrated::seal(key, nonce, aad, in_out, required, cpu.get_feature());
+@@ -91,7 +91,7 @@
+ ) -> Result<Tag, InputTooLongError> {
+     #[cfg(any(
+         all(target_arch = "aarch64", target_endian = "little"),
+-        target_arch = "x86_64"
++        all(target_arch = "x86_64", target_pointer_width = "64")
+     ))]
+     if let Some(required) = cpu.get_feature() {
+         return integrated::open(key, nonce, aad, in_out, required, cpu.get_feature());
+diff -ruN a/src/aead/gcm/clmul.rs b/src/aead/gcm/clmul.rs
+--- a/src/aead/gcm/clmul.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/aead/gcm/clmul.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -15,19 +15,19 @@
+ #![cfg(any(
+     all(target_arch = "aarch64", target_endian = "little"),
+     target_arch = "x86",
+-    target_arch = "x86_64"
++    all(target_arch = "x86_64", target_pointer_width = "64")
+ ))]
+ 
+ use super::{ffi::KeyValue, HTable, UpdateBlock, Xi};
+ use crate::aead::gcm::ffi::BLOCK_LEN;
+ use crate::cpu;
+-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
++#[cfg(any(target_arch = "x86", all(target_arch = "x86_64", target_pointer_width = "64")))]
+ use {super::UpdateBlocks, crate::polyfill::slice::AsChunks};
+ 
+ #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+ pub(in super::super) type RequiredCpuFeatures = cpu::arm::PMull;
+ 
+-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
++#[cfg(any(target_arch = "x86", all(target_arch = "x86_64", target_pointer_width = "64")))]
+ pub(in super::super) type RequiredCpuFeatures = (cpu::intel::ClMul, cpu::intel::Ssse3);
+ 
+ #[derive(Clone)]
+@@ -36,7 +36,7 @@
+ }
+ 
+ impl Key {
+-    #[cfg_attr(target_arch = "x86_64", inline(never))]
++    #[cfg_attr(all(target_arch = "x86_64", target_pointer_width = "64"), inline(never))]
+     pub(in super::super) fn new(value: KeyValue, _cpu: RequiredCpuFeatures) -> Self {
+         Self {
+             h_table: unsafe { htable_new!(gcm_init_clmul, value) },
+@@ -59,13 +59,13 @@
+         unsafe { self.h_table.gmult(gcm_gmult_clmul, xi) };
+     }
+ 
+-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
++    #[cfg(any(target_arch = "x86", all(target_arch = "x86_64", target_pointer_width = "64")))]
+     fn update_block(&self, xi: &mut Xi, a: [u8; BLOCK_LEN]) {
+         self.update_blocks(xi, (&a).into())
+     }
+ }
+ 
+-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
++#[cfg(any(target_arch = "x86", all(target_arch = "x86_64", target_pointer_width = "64")))]
+ impl UpdateBlocks for Key {
+     fn update_blocks(&self, xi: &mut Xi, input: AsChunks<u8, { BLOCK_LEN }>) {
+         unsafe { ghash!(gcm_ghash_clmul, xi, &self.h_table, input) }
+diff -ruN a/src/aead/gcm/clmulavxmovbe.rs b/src/aead/gcm/clmulavxmovbe.rs
+--- a/src/aead/gcm/clmulavxmovbe.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/aead/gcm/clmulavxmovbe.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -12,7 +12,7 @@
+ // OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+ // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ 
+-#![cfg(target_arch = "x86_64")]
++#![cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+ 
+ use super::{HTable, KeyValue, UpdateBlock, UpdateBlocks, Xi, BLOCK_LEN};
+ use crate::{cpu::intel, polyfill::slice::AsChunks};
+diff -ruN a/src/aead/gcm/ffi.rs b/src/aead/gcm/ffi.rs
+--- a/src/aead/gcm/ffi.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/aead/gcm/ffi.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -25,7 +25,7 @@
+     all(target_arch = "aarch64", target_endian = "little"),
+     all(target_arch = "arm", target_endian = "little"),
+     target_arch = "x86",
+-    target_arch = "x86_64"
++    all(target_arch = "x86_64", target_pointer_width = "64")
+ ))]
+ macro_rules! htable_new {
+     ( $name:ident, $value:expr $(,)? ) => {{
+@@ -44,7 +44,7 @@
+     all(target_arch = "aarch64", target_endian = "little"),
+     all(target_arch = "arm", target_endian = "little"),
+     target_arch = "x86",
+-    target_arch = "x86_64"
++    all(target_arch = "x86_64", target_pointer_width = "64")
+ ))]
+ macro_rules! ghash {
+     ( $name:ident, $xi:expr, $h_table:expr, $input:expr $(,)? ) => {{
+@@ -81,7 +81,7 @@
+     all(target_arch = "aarch64", target_endian = "little"),
+     all(target_arch = "arm", target_endian = "little"),
+     target_arch = "x86",
+-    target_arch = "x86_64"
++    all(target_arch = "x86_64", target_pointer_width = "64")
+ ))]
+ impl HTable {
+     pub(super) unsafe fn new(
+diff -ruN a/src/aead/gcm/vclmulavx2.rs b/src/aead/gcm/vclmulavx2.rs
+--- a/src/aead/gcm/vclmulavx2.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/aead/gcm/vclmulavx2.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -12,7 +12,7 @@
+ // OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+ // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ 
+-#![cfg(target_arch = "x86_64")]
++#![cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+ 
+ use super::{ffi::KeyValue, HTable, UpdateBlock, Xi};
+ use crate::{
+diff -ruN a/src/aead/gcm.rs b/src/aead/gcm.rs
+--- a/src/aead/gcm.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/aead/gcm.rs	2026-11-01 23:26:53.035230167 -0500
+@@ -24,7 +24,7 @@
+ pub(super) use ffi::KeyValue;
+ 
+ cfg_if! {
+-    if #[cfg(any(all(target_arch = "aarch64", target_endian = "little"), target_arch = "x86_64"))] {
++    if #[cfg(any(all(target_arch = "aarch64", target_endian = "little"), all(target_arch = "x86_64", target_pointer_width = "64")))] {
+         pub(super) use self::ffi::{HTable, Xi};
+     } else {
+         use self::ffi::{HTable, Xi};
+@@ -110,7 +110,7 @@
+     }
+ }
+ 
+-#[cfg(target_arch = "x86_64")]
++#[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+ impl Context<'_, clmulavxmovbe::Key> {
+     /// Access to `inner` for the integrated AES-GCM implementations only.
+     #[inline]
+@@ -119,7 +119,7 @@
+     }
+ }
+ 
+-#[cfg(target_arch = "x86_64")]
++#[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+ impl Context<'_, vclmulavx2::Key> {
+     /// Access to `inner` for the integrated AES-GCM implementations only.
+     #[inline]
+diff -ruN a/src/arithmetic/bigint.rs b/src/arithmetic/bigint.rs
+--- a/src/arithmetic/bigint.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/arithmetic/bigint.rs	2026-11-01 23:26:53.035230167 -0500
+@@ -127,7 +127,7 @@
+     }
+ }
+ 
+-#[cfg(any(test, not(target_arch = "x86_64")))]
++#[cfg(any(test, not(all(target_arch = "x86_64", target_pointer_width = "64"))))]
+ impl<M> Elem<M, R> {
+     #[inline]
+     pub fn into_unencoded(self, m: &Modulus<M>) -> Elem<M, Unencoded> {
+@@ -488,9 +488,9 @@
+     assert!(ELEM_EXP_CONSTTIME_MAX_MODULUS_LIMBS % limbs512::LIMBS_PER_CHUNK == 0);
+ const WINDOW_BITS: u32 = 5;
+ const TABLE_ENTRIES: usize = 1 << WINDOW_BITS;
+-const STORAGE_ENTRIES: usize = TABLE_ENTRIES + if cfg!(target_arch = "x86_64") { 3 } else { 0 };
++const STORAGE_ENTRIES: usize = TABLE_ENTRIES + if cfg!(all(target_arch = "x86_64", target_pointer_width = "64")) { 3 } else { 0 };
+ 
+-#[cfg(not(target_arch = "x86_64"))]
++#[cfg(not(all(target_arch = "x86_64", target_pointer_width = "64")))]
+ fn elem_exp_consttime_inner<N, M, const STORAGE_LIMBS: usize>(
+     out: Storage<M>,
+     base_mod_n: &Elem<N>,
+@@ -611,7 +611,7 @@
+     Ok(acc.into_unencoded(m))
+ }
+ 
+-#[cfg(target_arch = "x86_64")]
++#[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+ fn elem_exp_consttime_inner<N, M, const STORAGE_LIMBS: usize>(
+     out: Storage<M>,
+     base_mod_n: &Elem<N>,
+diff -ruN a/src/arithmetic/limbs/x86_64/mod.rs b/src/arithmetic/limbs/x86_64/mod.rs
+--- a/src/arithmetic/limbs/x86_64/mod.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/arithmetic/limbs/x86_64/mod.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -12,6 +12,6 @@
+ // OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+ // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ 
+-#![cfg(target_arch = "x86_64")]
++#![cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+ 
+ pub(in super::super::super) mod mont;
+diff -ruN a/src/arithmetic/limbs/x86_64/mont.rs b/src/arithmetic/limbs/x86_64/mont.rs
+--- a/src/arithmetic/limbs/x86_64/mont.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/arithmetic/limbs/x86_64/mont.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -12,7 +12,7 @@
+ // OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+ // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ 
+-#![cfg(target_arch = "x86_64")]
++#![cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+ 
+ use super::super::super::{
+     inout::{AliasingSlices2, AliasingSlices3},
+diff -ruN a/src/arithmetic/montgomery.rs b/src/arithmetic/montgomery.rs
+--- a/src/arithmetic/montgomery.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/arithmetic/montgomery.rs	2026-11-01 23:26:53.035230167 -0500
+@@ -167,7 +167,7 @@
+                     bn_mul_mont_fallback)
+                 }
+             }
+-        } else if #[cfg(target_arch = "x86_64")] {
++        } else if #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))] {
+             use crate::{cpu::GetFeature as _, polyfill::slice};
+             use super::limbs::x86_64;
+             if n.len() >= x86_64::mont::MIN_4X {
+@@ -193,7 +193,7 @@
+     if  #[cfg(not(any(
+             all(target_arch = "aarch64", target_endian = "little"),
+             all(target_arch = "arm", target_endian = "little"),
+-            target_arch = "x86_64")))] {
++            all(target_arch = "x86_64", target_pointer_width = "64"))))] {
+ 
+         // TODO: Stop calling this from C and un-export it.
+         #[cfg(not(target_arch = "x86"))]
+@@ -251,7 +251,7 @@
+     not(any(
+         all(target_arch = "aarch64", target_endian = "little"),
+         all(target_arch = "arm", target_endian = "little"),
+-        target_arch = "x86_64"
++        all(target_arch = "x86_64", target_pointer_width = "64")
+     ))
+ ))]
+ pub(super) fn limbs_from_mont_in_place(r: &mut [Limb], tmp: &mut [Limb], m: &[Limb], n0: &N0) {
+@@ -283,7 +283,7 @@
+ #[cfg(not(any(
+     all(target_arch = "aarch64", target_endian = "little"),
+     all(target_arch = "arm", target_endian = "little"),
+-    target_arch = "x86_64"
++    all(target_arch = "x86_64", target_pointer_width = "64")
+ )))]
+ fn limbs_mul(r: &mut [Limb], a: &[Limb], b: &[Limb]) {
+     debug_assert_eq!(r.len(), 2 * a.len());
+@@ -303,7 +303,7 @@
+     not(any(
+         all(target_arch = "aarch64", target_endian = "little"),
+         all(target_arch = "arm", target_endian = "little"),
+-        target_arch = "x86_64",
++        all(target_arch = "x86_64", target_pointer_width = "64"),
+     ))
+ ))]
+ prefixed_extern! {
+@@ -328,7 +328,7 @@
+         }
+     }
+ 
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+     {
+         use super::limbs::x86_64;
+         use crate::{cpu::GetFeature as _, polyfill::slice};
+diff -ruN a/src/cpu/intel.rs b/src/cpu/intel.rs
+--- a/src/cpu/intel.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/cpu/intel.rs	2026-11-01 23:26:53.035230167 -0500
+@@ -25,7 +25,7 @@
+     const _ASSUMES_SSE2: () =
+         assert!(cfg!(target_feature = "sse") && cfg!(target_feature = "sse2"));
+ 
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+     const _ASSUMED_POINTER_SIZE: usize = 8;
+     #[cfg(target_arch = "x86")]
+     const _ASSUMED_POINTER_SIZE: usize = 4;
+@@ -95,7 +95,7 @@
+     // Limited to x86_64-v2 features.
+     // TODO: Add missing x86-64-v3 features if we find real-world use of x86-64-v3.
+     // TODO: Add all features we use.
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+     #[rustfmt::skip]
+     pub const STATIC_DETECTED: u32 = 0
+         | if cfg!(target_feature = "sse4.1") { super::Sse41::mask() } else { 0 }
+@@ -112,9 +112,9 @@
+     // Programmer’s Manual, Volumes 1-5" Revision 4.08 April 2024.
+ 
+     // The `prefixed_extern!` uses below assume this
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+     use core::{mem::align_of, sync::atomic::AtomicU32};
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+     const _ATOMIC32_ALIGNMENT_EQUALS_U32_ALIGNMENT: () =
+         assert!(align_of::<AtomicU32>() == align_of::<u32>());
+ 
+@@ -129,14 +129,14 @@
+         debug_assert_eq!(*out & shifted, shifted);
+     }
+ 
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+     let is_intel = check(cpuid[0], 30); // Synthesized by `OPENSSL_cpuid_setup`
+ 
+     // CPUID leaf 1.
+     let leaf1_ecx = cpuid[1];
+ 
+     // Intel: "Structured Extended Feature Flags Enumeration Leaf"
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+     let (extended_features_ebx, extended_features_ecx) = (cpuid[2], cpuid[3]);
+ 
+     let mut caps = 0;
+@@ -184,9 +184,9 @@
+     // assertions in an attempt to support pre-SSE2 32-bit x86 systems. If they
+     // do, hopefully they won't delete these redundant assertions, so that
+     // x86_64 isn't affected.
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+     const _SSE2_REQUIRED_X86_64: () = assert!(cfg!(target_feature = "sse2"));
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+     const _SSE_REQUIRED_X86_64: () = assert!(cfg!(target_feature = "sse2"));
+ 
+     // Intel: "12.7.2 Checking for SSSE3 Support"
+@@ -203,7 +203,7 @@
+     //      us to do so; does AMD advertise SSE3? TODO: address this.
+     // XXX: We don't condition this on SSSE3 being available. TODO: address
+     //      this.
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+     if check(leaf1_ecx, 19) {
+         set(&mut caps, Shift::Sse41);
+     }
+@@ -218,7 +218,7 @@
+         set(&mut caps, Shift::Avx);
+     }
+ 
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+     if avx_available {
+         // The Intel docs don't seem to document the detection. The instruction
+         // definitions of the VEX.256 instructions reference the
+@@ -236,7 +236,7 @@
+     // XXX: We don't condition AVX2 on AVX. TODO: Address this.
+     // `OPENSSL_cpuid_setup` clears this bit when it detects the OS doesn't
+     // support AVX state.
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+     if check(extended_features_ebx, 5) {
+         set(&mut caps, Shift::Avx2);
+ 
+@@ -270,12 +270,12 @@
+     }
+     // See BoringSSL 69c26de93c82ad98daecaec6e0c8644cdf74b03f before enabling
+     // static feature detection for this.
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+     if check(extended_features_ebx, 29) {
+         set(&mut caps, Shift::Sha);
+     }
+ 
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+     {
+         if is_intel {
+             set(&mut caps, Shift::IntelCpu);
+@@ -352,7 +352,7 @@
+ }
+ 
+ cfg_if! {
+-    if #[cfg(target_arch = "x86_64")] {
++    if #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))] {
+         #[derive(Clone, Copy)]
+         pub(crate) struct IntelCpu(super::Features);
+ 
+diff -ruN a/src/cpu.rs b/src/cpu.rs
+--- a/src/cpu.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/cpu.rs	2026-11-01 23:26:53.035230167 -0500
+@@ -59,12 +59,12 @@
+                 $Name,
+             )+
+ 
+-            #[cfg(target_arch = "x86_64")]
++            #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+             IntelCpu,
+ 
+             #[cfg(any(all(target_arch = "aarch64", target_endian = "little"),
+                      all(target_arch = "arm", target_endian = "little"),
+-                     target_arch = "x86", target_arch = "x86_64"))]
++                     target_arch = "x86", all(target_arch = "x86_64", target_pointer_width = "64")))]
+             // Synthesized to ensure the dynamic flag set is always non-zero.
+             //
+             // Keep this at the end as it is never checked except during init.
+@@ -148,7 +148,7 @@
+ 
+     cfg_if::cfg_if! {
+         if #[cfg(any(all(target_arch = "aarch64", target_endian = "little"), all(target_arch = "arm", target_endian = "little"),
+-                     target_arch = "x86", target_arch = "x86_64"))] {
++                     target_arch = "x86", all(target_arch = "x86_64", target_pointer_width = "64")))] {
+             impl Features {
+                 // SAFETY: This must only be called after CPU features have been written
+                 // and synchronized.
+@@ -189,7 +189,7 @@
+     if #[cfg(any(all(target_arch = "aarch64", target_endian = "little"), all(target_arch = "arm", target_endian = "little")))] {
+         pub mod arm;
+         use arm::featureflags;
+-    } else if #[cfg(any(target_arch = "x86", target_arch = "x86_64"))] {
++    } else if #[cfg(any(target_arch = "x86", all(target_arch = "x86_64", target_pointer_width = "64")))] {
+         pub mod intel;
+         use intel::featureflags;
+     } else {
+diff -ruN a/src/digest/sha2/fallback.rs b/src/digest/sha2/fallback.rs
+--- a/src/digest/sha2/fallback.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/digest/sha2/fallback.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -23,7 +23,7 @@
+     any(
+         all(target_arch = "aarch64", target_endian = "little"),
+         all(target_arch = "arm", target_endian = "little"),
+-        target_arch = "x86_64"
++        all(target_arch = "x86_64", target_pointer_width = "64")
+     ),
+     allow(dead_code)
+ )]
+diff -ruN a/src/digest/sha2/mod.rs b/src/digest/sha2/mod.rs
+--- a/src/digest/sha2/mod.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/digest/sha2/mod.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -24,7 +24,7 @@
+ #[cfg(any(
+     all(target_arch = "aarch64", target_endian = "little"),
+     all(target_arch = "arm", target_endian = "little"),
+-    target_arch = "x86_64"
++    all(target_arch = "x86_64", target_pointer_width = "64")
+ ))]
+ #[macro_use]
+ mod ffi;
+diff -ruN a/src/digest/sha2/sha2_32.rs b/src/digest/sha2/sha2_32.rs
+--- a/src/digest/sha2/sha2_32.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/digest/sha2/sha2_32.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -41,7 +41,7 @@
+             } else {
+                 sha2_32_ffi!(unsafe { () => sha256_block_data_order_nohw }, state, data, ())
+             }
+-        } else if #[cfg(target_arch = "x86_64")] {
++        } else if #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))] {
+             use cpu::{GetFeature as _, intel::{Avx, IntelCpu, Sha, Ssse3 }};
+             let cpu = cpu.values();
+             if let Some(cpu) = cpu.get_feature() {
+diff -ruN a/src/digest/sha2/sha2_64.rs b/src/digest/sha2/sha2_64.rs
+--- a/src/digest/sha2/sha2_64.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/digest/sha2/sha2_64.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -41,7 +41,7 @@
+             } else {
+                 sha2_64_ffi!(unsafe { () => sha512_block_data_order_nohw }, state, data, ())
+             }
+-        } else if #[cfg(target_arch = "x86_64")] {
++        } else if #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))] {
+             use cpu::{GetFeature as _, intel::{Avx, IntelCpu}};
+             if let Some(cpu) = cpu.get_feature() {
+                 // Pre-Zen AMD CPUs had microcoded SHLD/SHRD which makes the
+diff -ruN a/src/ec/curve25519/ops.rs b/src/ec/curve25519/ops.rs
+--- a/src/ec/curve25519/ops.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/ec/curve25519/ops.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -160,7 +160,7 @@
+ #[inline(always)]
+ pub(super) fn has_fe25519_adx(cpu: cpu::Features) -> bool {
+     cfg_if::cfg_if! {
+-        if #[cfg(all(target_arch = "x86_64", not(target_os = "windows")))] {
++        if #[cfg(all(all(target_arch = "x86_64", target_pointer_width = "64"), not(target_os = "windows")))] {
+             use cpu::{intel::{Adx, Bmi1, Bmi2}, GetFeature as _};
+             matches!(cpu.get_feature(), Some((Adx { .. }, Bmi1 { .. }, Bmi2 { .. })))
+         } else {
+diff -ruN a/src/ec/curve25519/x25519.rs b/src/ec/curve25519/x25519.rs
+--- a/src/ec/curve25519/x25519.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/ec/curve25519/x25519.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -122,7 +122,7 @@
+             return x25519_neon(out, scalar, point, cpu);
+         }
+ 
+-        #[cfg(all(target_arch = "x86_64", not(target_os = "windows")))]
++        #[cfg(all(all(target_arch = "x86_64", target_pointer_width = "64"), not(target_os = "windows")))]
+         {
+             if ops::has_fe25519_adx(cpu_features) {
+                 prefixed_extern! {
+diff -ruN a/src/ec/suite_b/ops/p256.rs b/src/ec/suite_b/ops/p256.rs
+--- a/src/ec/suite_b/ops/p256.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/ec/suite_b/ops/p256.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -124,13 +124,13 @@
+ 
+     #[cfg(any(
+         all(target_arch = "aarch64", target_endian = "little"),
+-        target_arch = "x86_64"
++        all(target_arch = "x86_64", target_pointer_width = "64")
+     ))]
+     twin_mul: twin_mul_nistz256,
+ 
+     #[cfg(not(any(
+         all(target_arch = "aarch64", target_endian = "little"),
+-        target_arch = "x86_64"
++        all(target_arch = "x86_64", target_pointer_width = "64")
+     )))]
+     twin_mul: |g_scalar, p_scalar, p_xy, cpu| {
+         twin_mul_inefficient(&PRIVATE_KEY_OPS, g_scalar, p_scalar, p_xy, cpu)
+@@ -144,7 +144,7 @@
+ 
+ #[cfg(any(
+     all(target_arch = "aarch64", target_endian = "little"),
+-    target_arch = "x86_64"
++    all(target_arch = "x86_64", target_pointer_width = "64")
+ ))]
+ fn twin_mul_nistz256(
+     g_scalar: &Scalar,
+@@ -159,7 +159,7 @@
+ 
+ #[cfg(any(
+     all(target_arch = "aarch64", target_endian = "little"),
+-    target_arch = "x86_64"
++    all(target_arch = "x86_64", target_pointer_width = "64")
+ ))]
+ fn point_mul_base_vartime(g_scalar: &Scalar, _cpu: cpu::Features) -> Point {
+     prefixed_extern! {
+@@ -320,7 +320,7 @@
+ mod tests {
+     #[cfg(any(
+         all(target_arch = "aarch64", target_endian = "little"),
+-        target_arch = "x86_64"
++        all(target_arch = "x86_64", target_pointer_width = "64")
+     ))]
+     #[test]
+     fn p256_point_mul_base_vartime_test() {
+diff -ruN a/src/ec/suite_b/ops.rs b/src/ec/suite_b/ops.rs
+--- a/src/ec/suite_b/ops.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/ec/suite_b/ops.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -784,7 +784,7 @@
+     }
+ 
+     // There is no `ecp_nistz256_neg` on other targets.
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+     #[test]
+     fn p256_elem_neg_test() {
+         prefixed_extern! {
+diff -ruN a/src/lib.rs b/src/lib.rs
+--- a/src/lib.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/lib.rs	2026-11-01 23:26:53.035230167 -0500
+@@ -84,7 +84,7 @@
+         all(target_arch = "aarch64", target_endian = "little"),
+         all(target_arch = "arm", target_endian = "little"),
+         target_arch = "x86",
+-        target_arch = "x86_64",
++        all(target_arch = "x86_64", target_pointer_width = "64"),
+         feature = "alloc"
+     )),
+     allow(dead_code, unused_imports, unused_macros)
+diff -ruN a/src/polyfill/slice/as_chunks.rs b/src/polyfill/slice/as_chunks.rs
+--- a/src/polyfill/slice/as_chunks.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/polyfill/slice/as_chunks.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -37,7 +37,7 @@
+         self.0
+     }
+ 
+-    #[cfg(any(target_arch = "aarch64", target_arch = "arm", target_arch = "x86_64"))]
++    #[cfg(any(target_arch = "aarch64", target_arch = "arm", all(target_arch = "x86_64", target_pointer_width = "64")))]
+     #[inline(always)]
+     pub fn as_ptr(&self) -> *const [T; N] {
+         self.0.as_ptr().cast()
+diff -ruN a/src/polyfill/slice/as_chunks_mut.rs b/src/polyfill/slice/as_chunks_mut.rs
+--- a/src/polyfill/slice/as_chunks_mut.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/polyfill/slice/as_chunks_mut.rs	2026-11-01 23:26:53.045230164 -0500
+@@ -40,7 +40,7 @@
+         self.0.as_ptr().cast()
+     }
+ 
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+     pub fn as_ptr(&self) -> *const [T; N] {
+         self.0.as_ptr().cast()
+     }
+@@ -50,7 +50,7 @@
+         self.0.as_mut_ptr().cast()
+     }
+ 
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+     #[inline(always)]
+     pub fn as_mut(&mut self) -> AsChunksMut<T, N> {
+         AsChunksMut(self.0)
+@@ -68,7 +68,7 @@
+         AsChunksMutChunksMutIter(self.0.chunks_mut(CHUNK_LEN * N))
+     }
+ 
+-    #[cfg(target_arch = "x86_64")]
++    #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
+     #[inline(always)]
+     pub fn split_at_mut(&mut self, mid: usize) -> (AsChunksMut<T, N>, AsChunksMut<T, N>) {
+         let (before, after) = self.0.split_at_mut(mid * N);
+diff -ruN a/src/polyfill.rs b/src/polyfill.rs
+--- a/src/polyfill.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/polyfill.rs	2026-11-01 23:26:53.035230167 -0500
+@@ -65,7 +65,7 @@
+     all(target_arch = "aarch64", target_endian = "little"),
+     all(target_arch = "arm", target_endian = "little"),
+     target_arch = "x86",
+-    target_arch = "x86_64"
++    all(target_arch = "x86_64", target_pointer_width = "64")
+ ))]
+ pub mod once_cell {
+     pub mod race;
+diff -ruN a/src/prefixed.rs b/src/prefixed.rs
+--- a/src/prefixed.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/prefixed.rs	2026-11-01 23:26:53.035230167 -0500
+@@ -86,7 +86,7 @@
+     all(target_arch = "aarch64", target_endian = "little"),
+     all(target_arch = "arm", target_endian = "little"),
+     target_arch = "x86",
+-    target_arch = "x86_64"
++    all(target_arch = "x86_64", target_pointer_width = "64")
+ )))]
+ macro_rules! prefixed_export {
+     // A function.
