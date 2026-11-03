@@ -1,17 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
 <pkgmetadata>
-  <maintainer type="person">
-    <email>blshkv@pentoo.org</email>
-    <name>Anton Bolshakov</name>
-  </maintainer>
-  <upstream>
-    <remote-id type="github">elfmz/far2l</remote-id>
-  </upstream>
-  <use>
-    <flag name="nfs">Enable nfs support</flag>
-    <flag name="ssh">Enable ssh support</flag>
-    <flag name="uchardet">Enable encoding detector library</flag>
-    <flag name="webdav">Enable webdav support</flag>
-  </use>
+	<maintainer type="person">
+		<email>syutkin@gmail.com</email>
+		<name>Andrey Syutkin</name>
+	</maintainer>
+	<upstream>
+		<remote-id type="github">elfmz/far2l</remote-id>
+	</upstream>
+	<use>
+		<flag name="archive">Multiarc extended archives support</flag>
+		<flag name="aws">AWS S3 support in Netrocks</flag>
+		<flag name="chardet">Auto charset detection</flag>
+		<flag name="colorer">Colorer plugin support</flag>
+		<flag name="mtp">MTP/PTP plugin support</flag>
+		<flag name="nfs">NFS support in NetRocks</flag>
+		<flag name="python">Python plugin support</flag>
+		<flag name="rar">RAR archives support in MultiArc</flag>
+		<flag name="samba">SMB support in NetRocks</flag>
+		<flag name="sdl">Experimental SDL GUI backend support</flag>
+		<flag name="sftp">SFTP support in NetRocks</flag>
+		<flag name="ssl">FTPS support in NetRocks</flag>
+		<flag name="webdav">WebDav support in NetRocks</flag>
+		<flag name="wxwidgets">GUI backend support</flag>
+		<flag name="X">Provides better UX for TTY backend</flag>
+	</use>
 </pkgmetadata>
