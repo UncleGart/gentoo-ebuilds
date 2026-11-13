@@ -1,0 +1,13 @@
+--- a/qmake/CMakeLists.txt
++++ b/qmake/CMakeLists.txt
+@@ -69,6 +69,10 @@
+     TOOLS_TARGET Core
+     USER_FACING
+     INSTALL_VERSIONED_LINK
++    # Keep qmake out of unity builds: with -fipa-pta the single ~23-file
++    # TU needs >4 GiB in cc1plus, exhausting the address space of a
++    # 32-bit (x32, x86, arm, ...) compiler.
++    NO_UNITY_BUILD
+     SOURCES
+         cachekeys.h
+         generators/mac/pbuilder_pbx.cpp generators/mac/pbuilder_pbx.h
