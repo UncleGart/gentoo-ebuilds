@@ -1,0 +1,48 @@
+Subject: [PATCH] rustc_llvm: don't abort on LLVM-unknown target features
+
+Optional hardening, ported from 1.99.0-llvm23-hasfeature-nonfatal.patch.
+1.100 replaced LLVMRustHasFeature(TM, Feature) with
+LLVMRustMCSubtargetInfoCheckFeatures(MCInfo, "+a,+b,"), which still ends in
+MCSubtargetInfo::checkFeatures and therefore still report_fatal_error()s on a
+name LLVM does not know. Not required for 1.100.0 + LLVM 23.1.5: every
+x86/wasm/bpf feature rustc 1.100 queries exists in LLVM 23.1.5.
+
+diff --git a/compiler/rustc_llvm/llvm-wrapper/PassWrapper.cpp b/compiler/rustc_llvm/llvm-wrapper/PassWrapper.cpp
+index beb63ad6..12542780 100644
+--- a/compiler/rustc_llvm/llvm-wrapper/PassWrapper.cpp
++++ b/compiler/rustc_llvm/llvm-wrapper/PassWrapper.cpp
+@@ -110,7 +110,33 @@ LLVMRustCreateMCSubtargetInfo(const char *TripleStr, const char *CPU,
+ extern "C" bool LLVMRustMCSubtargetInfoCheckFeatures(MCSubtargetInfo *MCInfo,
+                                                      const char *Features,
+                                                      size_t FeaturesLen) {
+-  return MCInfo->checkFeatures(StringRef{Features, FeaturesLen});
++  // `MCSubtargetInfo::checkFeatures` calls `report_fatal_error` when a name is
++  // not in this target's feature table at all. That happens whenever LLVM
++  // retires a subtarget feature that rustc still lists in `rust_target_features`
++  // (e.g. x86 `amx-tf32`, dropped in LLVM 23), and it takes down every rustc
++  // invocation, including `--print=cfg`. Probe the table first and report the
++  // features as simply unavailable instead of aborting.
++  const StringRef FS{Features, FeaturesLen};
++  const ArrayRef<SubtargetFeatureKV> FeatTable =
++      MCInfo->getAllProcessorFeatures();
++  const SubtargetFeatures Requested(FS);
++  for (const std::string &Flagged : Requested.getFeatures()) {
++    const StringRef Feature = SubtargetFeatures::StripFlag(Flagged);
++    bool Known = false;
++    for (const SubtargetFeatureKV &Feat : FeatTable) {
++#if LLVM_VERSION_GE(23, 0)
++      if (StringRef(Feat.key()) == Feature) {
++#else
++      if (StringRef(Feat.Key) == Feature) {
++#endif
++        Known = true;
++        break;
++      }
++    }
++    if (!Known)
++      return false;
++  }
++  return MCInfo->checkFeatures(FS);
+ }
+ 
+ extern "C" void LLVMRustDisposeMCSubtargetInfo(MCSubtargetInfo *MCInfo) {
