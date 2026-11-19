@@ -1,0 +1,17 @@
+BDEPEND=git0? ( virtual/pkgconfig ) test? ( dev-vcs/git )
+DEFINED_PHASES=compile install postinst test
+DEPEND=>=dev-db/sqlite-3.41.0:3 git0? ( dev-libs/libgit2:= virtual/zlib:= ) git-local-sqlite? ( virtual/zlib:= )
+DESCRIPTION=Git object, ref and git-lfs storage in SQLite
+EAPI=8
+HOMEPAGE=https://github.com/MayCXC/sqlite-git
+INHERIT=multilib toolchain-funcs
+IUSE=+git0 git-local-sqlite +gitlfs +git-lfs-sqlite-transfer test
+KEYWORDS=~amd64
+LICENSE=BSD gitlfs? ( public-domain ) git-lfs-sqlite-transfer? ( public-domain )
+RDEPEND=>=dev-db/sqlite-3.41.0:3 git0? ( dev-libs/libgit2:= virtual/zlib:= ) git-local-sqlite? ( virtual/zlib:= ) git-lfs-sqlite-transfer? ( dev-vcs/git-lfs )
+REQUIRED_USE=|| ( git0 git-local-sqlite gitlfs git-lfs-sqlite-transfer )
+RESTRICT=!test? ( test )
+SLOT=0
+SRC_URI=https://github.com/MayCXC/sqlite-git/archive/038e20cc9cd8417231df0feab6d9a76130e0782e.tar.gz -> sqlite-git-0.1.0_p20261022.gh.tar.gz
+_eclasses_=toolchain-funcs	58a918e3a42d0156f010dcfd43725be5	multilib	fc812e8eb2170022c28272d80a1f9e77
+_md5_=1682e8a54347590fff20845638bcbfba

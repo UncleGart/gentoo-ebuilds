@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+	<!-- maintainer-needed -->
+	<longdescription>
+		Git storage in SQLite. Four independent tools over one shared storage
+		core: git0, a SQLite extension that queries git repositories from SQL
+		and runs a self-contained repository inside a database via a libgit2
+		backend; git-local-sqlite, a git local helper that stores objects, refs
+		and reflogs in one SQLite file; gitlfs, a standalone git-lfs content
+		store as a SQLite extension; and git-lfs-sqlite-transfer, a git-lfs
+		custom transfer agent backed by the same database.
+	</longdescription>
+	<use>
+		<flag name="git0">Build the git0 SQLite extension (git0.so), which queries git repositories from SQL; links <pkg>dev-libs/libgit2</pkg></flag>
+		<flag name="git-local-sqlite">Build git-local-sqlite, a git local helper storing objects, refs and reflogs in SQLite (needs a git with local-helper support)</flag>
+		<flag name="gitlfs">Build the gitlfs SQLite extension (gitlfs.so), a standalone git-lfs content store</flag>
+		<flag name="git-lfs-sqlite-transfer">Build git-lfs-sqlite-transfer, a <pkg>dev-vcs/git-lfs</pkg> custom transfer agent storing LFS content in SQLite</flag>
+	</use>
+	<upstream>
+		<remote-id type="github">MayCXC/sqlite-git</remote-id>
+		<bugs-to>https://github.com/MayCXC/sqlite-git/issues</bugs-to>
+	</upstream>
+</pkgmetadata>

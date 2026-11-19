@@ -1,0 +1,25 @@
+--- a/Makefile
++++ b/Makefile
+@@ -32,6 +32,11 @@
+ # The two libgit2 installs (override in config.mak).
+ LIBGIT2 ?= /usr/local
+ LIBGIT2_EXPERIMENTAL ?= /usr/local
++# Compile and link flags for the stock libgit2. Defaults derive from LIBGIT2;
++# override them (e.g. with `pkg-config --cflags/--libs libgit2`) to build
++# against a system libgit2 without a hard-coded lib/ dir or an rpath.
++LIBGIT2_CFLAGS ?= -I$(LIBGIT2)/include
++LIBGIT2_LIBS ?= -L$(LIBGIT2)/lib -Wl,-rpath,$(LIBGIT2)/lib -lgit2
+ 
+ # Storage tiers (see the header comment above).
+ STORAGE_CORE = storage.c
+@@ -53,8 +58,8 @@
+ 
+ build/stock/git0.$(EXT): $(EXT_SRCS) $(HDRS)
+ 	@mkdir -p build/stock
+-	$(CC) -shared $(CFLAGS) -I$(LIBGIT2)/include -I. -o $@ $(EXT_SRCS) \
+-		$(LDFLAGS) -L$(LIBGIT2)/lib -Wl,-rpath,$(LIBGIT2)/lib -lgit2 -lz
++	$(CC) -shared $(CFLAGS) $(LIBGIT2_CFLAGS) -I. -o $@ $(EXT_SRCS) \
++		$(LDFLAGS) $(LIBGIT2_LIBS) -lz
+ 
+ build/experimental/git0.$(EXT): $(EXT_SRCS) $(HDRS)
+ 	@mkdir -p build/experimental
